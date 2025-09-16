@@ -16,7 +16,7 @@ namespace penguinPT {
     }
 
     // kernel
-    __device__ inline nanovdb::Vec3f getColor(renderer_services& rs, nanovdb::math::Ray<float> ray, float2 uv) {
+    __device__ nanovdb::Vec3f getColor(renderer_services& rs, nanovdb::math::Ray<float> ray, float2 uv) {
         hit_info info;
         info.t = 1e10f;
         float pdf = 1.f;
@@ -96,7 +96,8 @@ namespace penguinPT {
         loader::obj_loader loader01;
         loader::nanovdb_loader loader02;
 
-        loader01.load_obj("assets/models/sphere.obj");
+        loader01.load_obj("horse_statue.obj", {0.f, 0.f, 0.f}, 50.f);
+        //loader01.load_obj("marble_bust_noNormals.obj", { 5.f, 0.f, 0.f }, 10.f);
         loader01.send_to_scene(rs.scene);
         
         rs.scene.build_BVH();
@@ -104,11 +105,12 @@ namespace penguinPT {
 
         // load quickly bsdf, TODO : move !!
         BSDF* h_list = new BSDF[2];
-        h_list[0].bsdf_type = BSDF_trough;
+        h_list[0].bsdf_type = BSDF_through;
         h_list[1].bsdf_type = BSDF_specular;
-        h_list[1].roughness = 0.2f;
+        h_list[1].roughness = 0.95f;
+        h_list[1].IOR = 1.5f;
         h_list[1].metalness = 1.f;
-        h_list[1].albedo = nanovdb::Vec3f(1.f, 0.7f, 0.3f);
+        h_list[1].albedo = nanovdb::Vec3f(0.4f, 0.5f, 0.6f);
         
         // transfer
         cudaMalloc((void**)&rs.scene.bsdf_list, 2 * sizeof(BSDF));
@@ -116,9 +118,9 @@ namespace penguinPT {
 
         delete[] h_list;
 
-        loader02.load_nvdb("fire.nvdb");
-        loader02.volume_parameters(0, 10.f, nanovdb::Vec3f(1.f), 0.f);
-        loader02.set_tranforms(0, 0.1f, nanovdb::Vec3f(0.f, 5.f, 0.f));
+        //loader02.load_nvdb("smoke2.nvdb");
+        //loader02.volume_parameters(0, 10.f, nanovdb::Vec3f(0.6f, 0.5f, 0.5f), 0.f);
+        //loader02.set_tranforms(0, 0.1f, nanovdb::Vec3f(0.f, 0.f, 5.f));
 
         loader02.send_to_scene(rs.scene);
         rs.scene.send_to_gpu_volumes();
@@ -149,6 +151,7 @@ namespace penguinPT {
             window.display();
 
             rs.delta_time = mainClock.restart().asSeconds();
+            gotoxy(0, 5);
             printf("FPS : %f\n", 1.f / rs.delta_time);
             rs.frame_index++;
         }

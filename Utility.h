@@ -9,6 +9,9 @@
 #define MIN_3(a, b) {a[0] < b[0] ? a[0] : b[0], a[1] < b[1] ? a[1] : b[1], a[2] < b[2] ? a[2] : b[2]}
 #define SIGN(x) (x > 0.f ? 1.f : x < 0.f ? -1.f : 0.f )
 
+// WARNING : THIS STARTS AT 1 FOR COORDS
+#define gotoxy(x, y) printf("%c[%d;%df", 0x1B, y, x);
+
 namespace penguinPT::util {
 	__hostdev__ inline void Onb(nanovdb::Vec3f N, nanovdb::Vec3f& T, nanovdb::Vec3f& B)
 	{
@@ -32,11 +35,29 @@ namespace penguinPT::util {
 	__hostdev__ inline T mix(T a, T b, float m) {
 		return a * (1.f - m) + b * m;
 	}
+	template <typename T>
+	__hostdev__ inline T exp3f(T a) {
+		return { expf(a[0]), expf(a[1]), expf(a[2]) };
+	}
 
 	template <typename vec3T>
 	__hostdev__ inline void safe(vec3T normal, nanovdb::math::Ray<float>& ray) {
 		//ray.reset(ray.eye() + normal * SAFE_OFFSET, ray.dir());
 		ray.setEye(ray.eye() + normal * SAFE_OFFSET);
+	}
+	__hostdev__ inline float fresnelAmount(float n1, float n2, nanovdb::Vec3f normal, nanovdb::Vec3f I, float f0, float f90) {
+		float r0 = (n1 - n2) / (n1 + n2);
+		r0 *= r0;
+		float cosX = -normal.dot(I);
+		if (n1 > n2) {
+			float n = n1 / n2;
+			float sinT2 = n * n * (1.0f - cosX * cosX);
+			if (sinT2 > 1.0f) return f90;
+			cosX = sqrtf(1.0f - sinT2);
+		}
+		float x = 1.0f - cosX;
+		float ret = r0 + (1.0f - r0) * x * x * x * x * x;
+		return mix(f0, f90, ret);
 	}
 
 	__device__ inline nanovdb::Vec3f generateUniformSample(Rand_state& rand_state) {
@@ -52,6 +73,12 @@ namespace penguinPT::util {
 		float k = v.dot(r);
 		return k > 0.0f ? v : v - 2.0f * r * k;
 	}
+	__hostdev__ inline nanovdb::Vec3f clipVecNoLength(nanovdb::Vec3f v, nanovdb::Vec3f r)
+	{
+		float k = v.dot(r);
+		return (k > 0.0) ? v : v - r * k;
+	}
+
 	
 }
 namespace penguinPT {

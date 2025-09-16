@@ -4,7 +4,7 @@
 #define QUICK_DIFFUSE
 #define MAX_DISTANCE 1.0e30f
 #define BOUNCES_PT 10
-#define BOUNCES_PT_VOL 32
+#define BOUNCES_PT_VOL 128
 #define SAFE_OFFSET 0.005f
 
 #include "cuda_runtime.h"

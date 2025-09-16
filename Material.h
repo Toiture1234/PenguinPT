@@ -6,13 +6,13 @@ namespace penguinPT {
 		BSDF_specular,
 		BSDF_glass,
 		BSDF_blinn_phong,
-		BSDF_trough
+		BSDF_through
 	};
 
-#define BSDF_EVAL_PARAMS nanovdb::math::Ray<float> ray, nanovdb::Vec3f N, nanovdb::Vec3f L_dir, float& pdf
-#define BSDF_SAMPLE_PARAMS nanovdb::math::Ray<float> ray, nanovdb::Vec3f N, nanovdb::Vec3f& L_out, Rand_state& rng_state, float& pdf
-#define BSDF_EVAL_PARAMS_FUNC ray, N, L_dir, pdf
-#define BSDF_SAMPLE_PARAMS_FUNC ray, N, L_out, rng_state, pdf
+#define BSDF_EVAL_PARAMS nanovdb::math::Ray<float> ray, nanovdb::Vec3f N, nanovdb::Vec3f L_dir, float& pdf, bool& inside, bool& through
+#define BSDF_SAMPLE_PARAMS nanovdb::math::Ray<float> ray, nanovdb::Vec3f N, nanovdb::Vec3f& L_out, Rand_state& rng_state, float& pdf, bool& inside, bool& through
+#define BSDF_EVAL_PARAMS_FUNC ray, N, L_dir, pdf, inside, through
+#define BSDF_SAMPLE_PARAMS_FUNC ray, N, L_out, rng_state, pdf, inside, through
 
 	// Class for handling different BSDF
 	// contains two functions : eval and sample,
@@ -51,12 +51,19 @@ namespace penguinPT {
 		__device__ inline nanovdb::Vec3f sample_null(BSDF_SAMPLE_PARAMS);
 
 		// trough BSDF
-		__hostdev__ inline nanovdb::Vec3f eval_trough(BSDF_EVAL_PARAMS);
-		__hostdev__ inline nanovdb::Vec3f sample_trough(BSDF_SAMPLE_PARAMS);
+		__hostdev__ inline nanovdb::Vec3f eval_through(BSDF_EVAL_PARAMS);
+		__hostdev__ inline nanovdb::Vec3f sample_through(BSDF_SAMPLE_PARAMS);
 
 		// specular BSDF
 		__device__ inline nanovdb::Vec3f eval_specular(BSDF_EVAL_PARAMS);
 		__device__ inline nanovdb::Vec3f sample_specular(BSDF_SAMPLE_PARAMS);
+
+		// glass BSDF
+		__device__ inline nanovdb::Vec3f eval_glass(BSDF_EVAL_PARAMS);
+		__device__ inline nanovdb::Vec3f sample_glass(BSDF_SAMPLE_PARAMS);
+
+		__device__ inline nanovdb::Vec3f eval_blinn_phong(BSDF_EVAL_PARAMS);
+		__device__ inline nanovdb::Vec3f sample_blinn_phong(BSDF_SAMPLE_PARAMS);
 	};
 
 	// diffuse BSDF
@@ -83,7 +90,7 @@ namespace penguinPT {
 		return INV_PI * albedo * cos_theta;
 #else
 		L_out = (N + util::generateUniformSample(rng_state)).normalize();
-		return eval_diffuse(ray, N, L_out, pdf);
+		return eval_diffuse(ray, N, L_out, pdf, inside, through);
 #endif
 	}
 	
@@ -99,14 +106,15 @@ namespace penguinPT {
 	}
 
 	// trough bsdf
-	__hostdev__ inline nanovdb::Vec3f BSDF::eval_trough(BSDF_EVAL_PARAMS) {
+	__hostdev__ inline nanovdb::Vec3f BSDF::eval_through(BSDF_EVAL_PARAMS) {
 		float k = ray.dir().dot(L_dir);
 		pdf = k == 1.f ? 1.f : 0.f;
 		return nanovdb::Vec3f(pdf);
 	}
-	__hostdev__ inline nanovdb::Vec3f BSDF::sample_trough(BSDF_SAMPLE_PARAMS) {
+	__hostdev__ inline nanovdb::Vec3f BSDF::sample_through(BSDF_SAMPLE_PARAMS) {
 		L_out = ray.dir();
 		pdf = 1.f;
+		through = true;
 		return nanovdb::Vec3f(1.f);
 	}
 
@@ -116,8 +124,8 @@ namespace penguinPT {
 		float n = 1.f + 1000.f * (1.f - roughness) * (1.f - roughness);
 
 		float cosAlpha = CLAMP(Reflected.dot(L_dir), 0.f, 1.f);
-		float G = N.dot(L_dir);
-		return powf(cosAlpha, n) * util::mix(nanovdb::Vec3f(1.f), albedo, metalness) * (n + 1.f) * INV_TWO_PI * G;
+		//float G = N.dot(L_dir);
+		return powf(cosAlpha, n) * util::mix(nanovdb::Vec3f(1.f), albedo, metalness) * (n + 1.f) * INV_TWO_PI;
 	}
 	__device__ inline nanovdb::Vec3f BSDF::sample_specular(BSDF_SAMPLE_PARAMS) {
 		nanovdb::Vec3f Reflected = util::reflect(ray.dir(), N);
@@ -134,11 +142,70 @@ namespace penguinPT {
 		util::Onb(Reflected, T, B);
 
 		L_out = (sin_alpha * cosf(phi) * T + sin_alpha * sinf(phi) * B + cos_alpha * Reflected).normalize();
-		float G = N.dot(L_out);
-		pdf = powf(cos_alpha, n) * (n + 1.f) * INV_TWO_PI * G;
+		//float G = N.dot(L_out);
+		pdf = powf(cos_alpha, n) * (n + 1.f) * INV_TWO_PI;
 
-		if (L_out.dot(N) <= 0.f) pdf = 0.f;
+		if (L_out.dot(N) < 0.f) pdf = 0.f;
+		//pdf = 0.f;
 		return pdf * util::mix(nanovdb::Vec3f(1.f), albedo, metalness);
+	}
+
+	__device__ inline nanovdb::Vec3f BSDF::eval_glass(BSDF_EVAL_PARAMS) {
+		//TODO
+	}
+	__device__ inline nanovdb::Vec3f BSDF::sample_glass(BSDF_SAMPLE_PARAMS) {
+		float n1 = !inside ? 1.0f : IOR;
+		float n2 = !inside ? IOR : 1.0f;
+		float IOR_d = n1 / n2;
+
+		float f_prob = util::fresnelAmount(n1, n2, N, ray.dir(), 0.2f, 1.f);
+		//float f_prob = 0.f;
+
+		nanovdb::Vec3f Dir_perfect;
+		float mult;
+		float w;
+		nanovdb::Vec3f refracted = util::refract(ray.dir(), N, IOR_d);
+		if (randC(&rng_state) < f_prob || refracted.dot(refracted) == 0.f) {
+			Dir_perfect = util::reflect(ray.dir(), N);
+			mult = 1.f;
+			w = f_prob;
+			through = false;
+		}
+		else {
+			Dir_perfect = refracted;
+			inside = !inside;
+			mult = -1.f;
+			w = 1.f - f_prob;
+			through = true;
+		}
+		
+		float n = 1.f + 1000.f * (1.f - roughness) * (1.f - roughness);
+
+		float u1 = randC(&rng_state);
+		float u2 = randC(&rng_state);
+
+		float phi = TWO_PI * u2;
+		float cos_alpha = powf(u1, 1.f / (n + 1.f));
+		float sin_alpha = sqrtf(1.f - cos_alpha * cos_alpha);
+
+		nanovdb::Vec3f T, B;
+		util::Onb(Dir_perfect, T, B);
+
+		L_out = (sin_alpha * cosf(phi) * T + sin_alpha * sinf(phi) * B + cos_alpha * Dir_perfect).normalize();
+		float pdf0 = powf(cos_alpha, n) * (n + 1.f) * INV_TWO_PI;
+		pdf = pdf0 * w;
+		
+		if (L_out.dot(N) * mult <= 0.f) pdf = 0.f;
+		
+		return nanovdb::Vec3f(pdf0);
+		
+	}
+
+	__device__ inline nanovdb::Vec3f BSDF::eval_blinn_phong(BSDF_EVAL_PARAMS) {
+		return { 0.f, 0.f, 0.f };
+	}
+	__device__ inline nanovdb::Vec3f BSDF::sample_blinn_phong(BSDF_SAMPLE_PARAMS) {
+		return { 0.f, 0.f, 0.f };
 	}
 
 	__device__ inline nanovdb::Vec3f BSDF::eval(BSDF_EVAL_PARAMS) {
@@ -149,10 +216,12 @@ namespace penguinPT {
 			return eval_null(BSDF_EVAL_PARAMS_FUNC);
 		case BSDF_diffuse :
 			return eval_diffuse(BSDF_EVAL_PARAMS_FUNC);
-		case BSDF_trough:
-			return eval_trough(BSDF_EVAL_PARAMS_FUNC);
+		case BSDF_through:
+			return eval_through(BSDF_EVAL_PARAMS_FUNC);
 		case BSDF_specular:
 			return eval_specular(BSDF_EVAL_PARAMS_FUNC);
+		case BSDF_glass:
+			return eval_glass(BSDF_EVAL_PARAMS_FUNC);
 		}
 	}
 
@@ -164,10 +233,12 @@ namespace penguinPT {
 			return sample_null(BSDF_SAMPLE_PARAMS_FUNC);
 		case BSDF_diffuse:
 			return sample_diffuse(BSDF_SAMPLE_PARAMS_FUNC);
-		case BSDF_trough:
-			return sample_trough(BSDF_SAMPLE_PARAMS_FUNC);
+		case BSDF_through:
+			return sample_through(BSDF_SAMPLE_PARAMS_FUNC);
 		case BSDF_specular:
 			return sample_specular(BSDF_SAMPLE_PARAMS_FUNC);
+		case BSDF_glass:
+			return sample_glass(BSDF_SAMPLE_PARAMS_FUNC);
 		}
 	}
 }

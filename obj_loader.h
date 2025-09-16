@@ -1,5 +1,6 @@
 #pragma once
 
+#define SCALE 10.f
 namespace penguinPT::loader {
 	// utility for reading lines
 	// assume the current character is not an escape
@@ -41,16 +42,20 @@ namespace penguinPT::loader {
 
 		unsigned int triangles_num = 0;
 
-		bool load_obj(std::string path);
+		bool load_obj(std::string path, nanovdb::Vec3f position, float scale);
 		void send_to_scene(Scene_data& scene);
 	};
 
-	bool obj_loader::load_obj(std::string path) {
+	bool obj_loader::load_obj(std::string path, nanovdb::Vec3f position, float scale) {
 
 		bool normals = false;
 		bool uvs = false;
 
-		std::ifstream file(path);
+		unsigned int vertex_start = vertices_list.size();
+		unsigned int normal_start = normal_list.size();
+		unsigned int uv_start = uv_list.size();
+
+		std::ifstream file("assets/models/" + path);
 
 		if (file.is_open()) {
 			std::string line;
@@ -59,7 +64,7 @@ namespace penguinPT::loader {
 				
 				if (tokens.at(0) == "v") {
 					//std::cout << "Vertice\n";
-					vertices_list.push_back({ std::stof(tokens.at(1)), std::stof(tokens.at(2)), std::stof(tokens.at(3)) });
+					vertices_list.push_back({ std::stof(tokens.at(1)) * scale + position[0], std::stof(tokens.at(2)) * scale + position[1], std::stof(tokens.at(3)) * scale + position[2] });
 					//std::cout << std::stof(tokens.at(1)) << " " << std::stof(tokens.at(2)) << " " << std::stof(tokens.at(3)) << "\n";
 				} else if (tokens.at(0) == "vn") {
 					//std::cout << "Normal\n";
@@ -84,17 +89,17 @@ namespace penguinPT::loader {
 					if (normals && uvs) { // everything is here !
 						//std::cout << "everything is here !\n";
 
-						verticeA = std::stoi(tokens.at(1)) - 1;
-						verticeB = std::stoi(tokens.at(4)) - 1;
-						verticeC = std::stoi(tokens.at(7)) - 1;
+						verticeA = std::stoi(tokens.at(1)) - 1 + vertex_start;
+						verticeB = std::stoi(tokens.at(4)) - 1 + vertex_start;
+						verticeC = std::stoi(tokens.at(7)) - 1 + vertex_start;
 
-						normalA = std::stoi(tokens.at(3)) - 1;
-						normalB = std::stoi(tokens.at(6)) - 1;
-						normalC = std::stoi(tokens.at(9)) - 1;
+						normalA = std::stoi(tokens.at(3)) - 1 + normal_start;
+						normalB = std::stoi(tokens.at(6)) - 1 + normal_start;
+						normalC = std::stoi(tokens.at(9)) - 1 + normal_start;
 
-						uvA = std::stoi(tokens.at(2)) - 1;
-						uvB = std::stoi(tokens.at(5)) - 1;
-						uvC = std::stoi(tokens.at(8)) - 1;
+						uvA = std::stoi(tokens.at(2)) - 1 + uv_start;
+						uvB = std::stoi(tokens.at(5)) - 1 + uv_start;
+						uvC = std::stoi(tokens.at(8)) - 1 + uv_start;
 
 						Triangle tr(vertices_list.at(verticeA), vertices_list.at(verticeB), vertices_list.at(verticeC));
 						tr.nA = normal_list.at(normalA);
@@ -106,13 +111,13 @@ namespace penguinPT::loader {
 					else if (normals) { // normals but not uvs
 						//std::cout << "normals but not uvs\n";
 
-						verticeA = std::stoi(tokens.at(1)) - 1;
-						verticeB = std::stoi(tokens.at(3)) - 1;
-						verticeC = std::stoi(tokens.at(5)) - 1;
+						verticeA = std::stoi(tokens.at(1)) - 1 + vertex_start;
+						verticeB = std::stoi(tokens.at(3)) - 1 + vertex_start;
+						verticeC = std::stoi(tokens.at(5)) - 1 + vertex_start;
 
-						normalA = std::stoi(tokens.at(2)) - 1;
-						normalB = std::stoi(tokens.at(4)) - 1;
-						normalC = std::stoi(tokens.at(6)) - 1;
+						normalA = std::stoi(tokens.at(2)) - 1 + normal_start;
+						normalB = std::stoi(tokens.at(4)) - 1 + normal_start;
+						normalC = std::stoi(tokens.at(6)) - 1 + normal_start;
 
 						Triangle tr(vertices_list.at(verticeA), vertices_list.at(verticeB), vertices_list.at(verticeC));
 						tr.nA = normal_list.at(normalA);
@@ -124,22 +129,22 @@ namespace penguinPT::loader {
 					else if (uvs) { // uvs but not normals
 						//std::cout << "uvs but not normals\n";
 
-						verticeA = std::stoi(tokens.at(1)) - 1;
-						verticeB = std::stoi(tokens.at(3)) - 1;
-						verticeC = std::stoi(tokens.at(5)) - 1;
+						verticeA = std::stoi(tokens.at(1)) - 1 + vertex_start;
+						verticeB = std::stoi(tokens.at(3)) - 1 + vertex_start;
+						verticeC = std::stoi(tokens.at(5)) - 1 + vertex_start;
 
-						uvA = std::stoi(tokens.at(2)) - 1;
-						uvB = std::stoi(tokens.at(4)) - 1;
-						uvC = std::stoi(tokens.at(6)) - 1;
+						uvA = std::stoi(tokens.at(2)) - 1 + uv_start;
+						uvB = std::stoi(tokens.at(4)) - 1 + uv_start;
+						uvC = std::stoi(tokens.at(6)) - 1 + uv_start;
 
 						triangle_list.push_back(Triangle(vertices_list.at(verticeA), vertices_list.at(verticeB), vertices_list.at(verticeC)));
 					}
 					else { // only points, do nothing special
 						//std::cout << "only points\n";
 
-						verticeA = std::stoi(tokens.at(1)) - 1;
-						verticeB = std::stoi(tokens.at(2)) - 1;
-						verticeC = std::stoi(tokens.at(3)) - 1;
+						verticeA = std::stoi(tokens.at(1)) - 1 + vertex_start;
+						verticeB = std::stoi(tokens.at(2)) - 1 + vertex_start;
+						verticeC = std::stoi(tokens.at(3)) - 1 + vertex_start;
 
 						triangle_list.push_back(Triangle(vertices_list.at(verticeA), vertices_list.at(verticeB), vertices_list.at(verticeC)));
 					}
