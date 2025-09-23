@@ -66,13 +66,12 @@ namespace penguinPT {
 
 			// fix normal
 			info.normal = util::refIfNeg(info.normal, -ray.dir());
-			//info.normal = util::clipVecNoLength(info.normal, -ray.dir()).normalize();
-
+			
 			if (!hit) {
-				L += ray.dir().dot(nanovdb::Vec3f(1.f).normalize()) > 0.8f ? nanovdb::Vec3f(1.f) * throughput * 4.f : nanovdb::Vec3f(0.f);
+				L += ray.dir().dot(nanovdb::Vec3f(1.f).normalize()) > 0.8f ? nanovdb::Vec3f(1.f) * throughput * 2.f : nanovdb::Vec3f(0.f);
 				//L += nanovdb::Vec3f(ray.dir()[1] * 0.5f + 0.5f) * throughput;
 				//L += fmaxf(sinf(ray.dir()[0] * 5.f) * sinf(ray.dir()[2] * 5.f), 0.f) * throughput;
-				L += util::mix(0.5f, 1.f, ray.dir()[1] * 0.5f + 0.5f) * nanovdb::Vec3f(0.8f, 0.9f, 1.f) * throughput;
+				L += util::mix(0.5f, 1.f, ray.dir()[1] * 0.5f + 0.5f) * nanovdb::Vec3f(0.8f, 0.9f, 1.f) * throughput * 0.3f;
 				break;
 			}
 
@@ -104,6 +103,8 @@ namespace penguinPT {
 
 				ray.reset(ray(info.t), L_dir);
 				safe_both(info.normal, ray, through);
+
+				//if (through) attenuation = surface_bsdf.attenuation;
 			}
 
 			if (scatterPDF > 0.0001f) throughput = throughput * bsdf_value / scatterPDF;

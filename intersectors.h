@@ -5,6 +5,14 @@
 
 namespace penguinPT {
 
+	class Sphere {
+	public:
+		nanovdb::Vec3f center;
+		float radius;
+
+		__hostdev__ Sphere() : center(0.f), radius(0.f) {}
+		__hostdev__ ~Sphere() {}
+	};
 	// simple triangle class, maybe would grow up later with normals and textures
 	class Triangle {
 	public:

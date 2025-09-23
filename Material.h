@@ -1,4 +1,7 @@
 #pragma once
+
+#define POW_ROUGHNESS(r) ((r) * (r) * (r) * (r) * (r) * (r))
+
 namespace penguinPT {
 	enum BSDF_types {
 		BSDF_null = 0,
@@ -24,10 +27,11 @@ namespace penguinPT {
 		float metalness;
 		float IOR;
 		nanovdb::Vec3f emission;
+		nanovdb::Vec3f attenuation;
 
 		unsigned int bsdf_type = BSDF_null;
 	public:
-		__hostdev__ BSDF() : albedo(0.f), roughness(0.f), metalness(0.f), IOR(0.f), emission(0.f) {}
+		__hostdev__ BSDF() : albedo(0.f), roughness(0.f), metalness(0.f), IOR(0.f), emission(0.f), attenuation(0.f) {}
 		__hostdev__ ~BSDF() {}
 
 		// Eval BSDF response based on incoming and exiting rays along with the normal of the surface,
@@ -121,15 +125,15 @@ namespace penguinPT {
 	// specular bsdf
 	__device__ inline nanovdb::Vec3f BSDF::eval_specular(BSDF_EVAL_PARAMS) {
 		nanovdb::Vec3f Reflected = util::reflect(ray.dir(), N);
-		float n = 1.f + 1000.f * (1.f - roughness) * (1.f - roughness);
+		float n = 1.f + 1000.f * POW_ROUGHNESS(1.f - roughness);
 
 		float cosAlpha = CLAMP(Reflected.dot(L_dir), 0.f, 1.f);
-		//float G = N.dot(L_dir);
+		pdf = powf(cosAlpha, n) * (n + 1.f) * INV_TWO_PI;
 		return powf(cosAlpha, n) * util::mix(nanovdb::Vec3f(1.f), albedo, metalness) * (n + 1.f) * INV_TWO_PI;
 	}
 	__device__ inline nanovdb::Vec3f BSDF::sample_specular(BSDF_SAMPLE_PARAMS) {
 		nanovdb::Vec3f Reflected = util::reflect(ray.dir(), N);
-		float n = 1.f + 1000.f * (1.f - roughness) * (1.f - roughness);
+		float n = 1.f + 1000.f * POW_ROUGHNESS(1.f - roughness);
 
 		float u1 = randC(&rng_state);
 		float u2 = randC(&rng_state);
@@ -142,16 +146,40 @@ namespace penguinPT {
 		util::Onb(Reflected, T, B);
 
 		L_out = (sin_alpha * cosf(phi) * T + sin_alpha * sinf(phi) * B + cos_alpha * Reflected).normalize();
-		//float G = N.dot(L_out);
 		pdf = powf(cos_alpha, n) * (n + 1.f) * INV_TWO_PI;
 
 		if (L_out.dot(N) < 0.f) pdf = 0.f;
-		//pdf = 0.f;
 		return pdf * util::mix(nanovdb::Vec3f(1.f), albedo, metalness);
 	}
 
 	__device__ inline nanovdb::Vec3f BSDF::eval_glass(BSDF_EVAL_PARAMS) {
 		//TODO
+		float n1 = !inside ? 1.0f : IOR;
+		float n2 = !inside ? IOR : 1.0f;
+		float IOR_d = n1 / n2;
+
+		float f_prob = util::fresnelAmount(n1, n2, N, ray.dir(), 0.2f, 1.f);
+		float n = 1.f + 1000.f * POW_ROUGHNESS(1.f - roughness);
+
+		nanovdb::Vec3f l = nanovdb::Vec3f(0.f);
+		pdf = 0.f;
+		if (f_prob > 0.f) { // specular
+			nanovdb::Vec3f Reflected = util::reflect(ray.dir(), N);
+			float cosAlpha = CLAMP(Reflected.dot(L_dir), 0.f, 1.f);
+			float p_cosAlpha = powf(cosAlpha, n) * (n + 1.f) * INV_TWO_PI;
+
+			pdf += p_cosAlpha * f_prob;
+			l += nanovdb::Vec3f(p_cosAlpha) * f_prob;
+		} 
+		if (1.f - f_prob > 0.f) { // refraction
+			nanovdb::Vec3f Refracted = util::refract(ray.dir(), N, IOR_d);
+			float cosAlpha = CLAMP(Refracted.dot(L_dir), 0.f, 1.f);
+			float p_cosAlpha = powf(cosAlpha, n) * (n + 1.f) * INV_TWO_PI;
+
+			pdf += p_cosAlpha * (1.f - f_prob);
+			l += nanovdb::Vec3f(p_cosAlpha) * (1.f - f_prob);
+		}
+		return l;
 	}
 	__device__ inline nanovdb::Vec3f BSDF::sample_glass(BSDF_SAMPLE_PARAMS) {
 		float n1 = !inside ? 1.0f : IOR;
@@ -159,28 +187,23 @@ namespace penguinPT {
 		float IOR_d = n1 / n2;
 
 		float f_prob = util::fresnelAmount(n1, n2, N, ray.dir(), 0.2f, 1.f);
-		//float f_prob = 0.f;
+		float n = 1.f + 1000.f * POW_ROUGHNESS(1.f - roughness);
 
 		nanovdb::Vec3f Dir_perfect;
-		float mult;
 		float w;
 		nanovdb::Vec3f refracted = util::refract(ray.dir(), N, IOR_d);
 		if (randC(&rng_state) < f_prob || refracted.dot(refracted) == 0.f) {
 			Dir_perfect = util::reflect(ray.dir(), N);
-			mult = 1.f;
 			w = f_prob;
 			through = false;
 		}
 		else {
 			Dir_perfect = refracted;
 			inside = !inside;
-			mult = -1.f;
 			w = 1.f - f_prob;
 			through = true;
 		}
 		
-		float n = 1.f + 1000.f * (1.f - roughness) * (1.f - roughness);
-
 		float u1 = randC(&rng_state);
 		float u2 = randC(&rng_state);
 
@@ -195,7 +218,7 @@ namespace penguinPT {
 		float pdf0 = powf(cos_alpha, n) * (n + 1.f) * INV_TWO_PI;
 		pdf = pdf0 * w;
 		
-		if (L_out.dot(N) * mult <= 0.f) pdf = 0.f;
+		if (L_out.dot(N) * (through ? -1.f : 1.f) <= 0.f) pdf = 0.f;
 		
 		return nanovdb::Vec3f(pdf0);
 		

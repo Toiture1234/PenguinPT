@@ -49,3 +49,4 @@ typedef curandStatePhilox4_32_10_t Rand_state;
 #include "pathtracer.h"
 #include "obj_loader.h"
 #include "nanovdb_loader.h"
+#include "xml_scene_loader.h"
