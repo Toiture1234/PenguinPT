@@ -106,8 +106,8 @@ namespace penguinPT {
         // load quickly bsdf, TODO : move !!
         BSDF* h_list = new BSDF[2];
         h_list[0].bsdf_type = BSDF_through;
-        h_list[1].bsdf_type = BSDF_glass;
-        h_list[1].roughness = 0.25f;
+        h_list[1].bsdf_type = BSDF_specular;
+        h_list[1].roughness = 0.f;
         h_list[1].IOR = 1.5f;
         h_list[1].metalness = 1.f;
         h_list[1].albedo = nanovdb::Vec3f(0.4f, 0.5f, 0.6f);

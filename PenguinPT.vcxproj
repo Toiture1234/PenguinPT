@@ -26,6 +26,7 @@
     <ClInclude Include="camera.h" />
     <ClInclude Include="intersectors.h" />
     <ClInclude Include="Material.h" />
+    <ClInclude Include="Microfacet.h" />
     <ClInclude Include="nanovdb_loader.h" />
     <ClInclude Include="obj_loader.h" />
     <ClInclude Include="pathtracer.h" />

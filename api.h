@@ -41,6 +41,7 @@ typedef curandStatePhilox4_32_10_t Rand_state;
 #define INV_4_PI 0.07957747154594766788444188168626f
 
 #include "Utility.h"
+#include "Microfacet.h"
 #include "Material.h"
 #include "volumes.h"
 #include "intersectors.h"

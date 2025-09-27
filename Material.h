@@ -124,15 +124,38 @@ namespace penguinPT {
 
 	// specular bsdf
 	__device__ inline nanovdb::Vec3f BSDF::eval_specular(BSDF_EVAL_PARAMS) {
-		nanovdb::Vec3f Reflected = util::reflect(ray.dir(), N);
+		/*nanovdb::Vec3f Reflected = util::reflect(ray.dir(), N);
 		float n = 1.f + 1000.f * POW_ROUGHNESS(1.f - roughness);
 
 		float cosAlpha = CLAMP(Reflected.dot(L_dir), 0.f, 1.f);
 		pdf = powf(cosAlpha, n) * (n + 1.f) * INV_TWO_PI;
-		return powf(cosAlpha, n) * util::mix(nanovdb::Vec3f(1.f), albedo, metalness) * (n + 1.f) * INV_TWO_PI;
+		return powf(cosAlpha, n) * util::mix(nanovdb::Vec3f(1.f), albedo, metalness) * (n + 1.f) * INV_TWO_PI;*/
+
+		nanovdb::Vec3f T, B;
+		util::Onb(N, T, B);
+
+		nanovdb::Vec3f wo = -ray.dir();
+		nanovdb::Vec3f wi = L_dir;
+
+		wo = util::ToLocal(T, B, N, wo);
+		wi = util::ToLocal(T, B, N, wi);
+
+		float ax = Microfacet::Beckmann_distribution::roughness_to_alpha(roughness);
+		float ay = Microfacet::Beckmann_distribution::roughness_to_alpha(roughness);
+		Microfacet::Beckmann_distribution dsrt(ax, ay);
+
+		float cosThetaO = fabsf(util::CosTheta(wo)), cosThetaI = fabsf(util::CosTheta(wi));
+
+		nanovdb::Vec3f H = wo + wi;
+		if (cosThetaO == 0.f || cosThetaI == 0.f) return nanovdb::Vec3f(0.f);
+		if(H.dot(H) == 0.f) return nanovdb::Vec3f(0.f);
+
+		H = H.normalize();
+		float F = Microfacet::fresnel_dielectric(wi.dot(H), 1.f, IOR);
+		return dsrt.D(H) * dsrt.G(wo, wi) / (4.f * cosThetaI * cosThetaO) * util::mix(nanovdb::Vec3f(1.f), albedo, metalness);
 	}
 	__device__ inline nanovdb::Vec3f BSDF::sample_specular(BSDF_SAMPLE_PARAMS) {
-		nanovdb::Vec3f Reflected = util::reflect(ray.dir(), N);
+		/*nanovdb::Vec3f Reflected = util::reflect(ray.dir(), N);
 		float n = 1.f + 1000.f * POW_ROUGHNESS(1.f - roughness);
 
 		float u1 = randC(&rng_state);
@@ -149,7 +172,28 @@ namespace penguinPT {
 		pdf = powf(cos_alpha, n) * (n + 1.f) * INV_TWO_PI;
 
 		if (L_out.dot(N) < 0.f) pdf = 0.f;
-		return pdf * util::mix(nanovdb::Vec3f(1.f), albedo, metalness);
+		return pdf * util::mix(nanovdb::Vec3f(1.f), albedo, metalness);*/
+
+		// sample Beckmann
+		float ax = Microfacet::Beckmann_distribution::roughness_to_alpha(roughness);
+		float ay = Microfacet::Beckmann_distribution::roughness_to_alpha(roughness);
+		Microfacet::Beckmann_distribution dsrt(ax, ay);
+
+		nanovdb::Vec3f T, B;
+		util::Onb(N, T, B);
+
+		nanovdb::Vec3f wo = util::ToLocal(T, B, N, -ray.dir());
+		nanovdb::Vec3f H = dsrt.sample_wh(rng_state);
+
+		L_out = util::reflect(-wo, H);
+		
+		pdf = dsrt.PDF(H, wo) / (4.f * wo.dot(H));
+		
+		// convert back to world
+		L_out = util::ToWorld(T, B, N, L_out);
+
+		float pdf0 = 0.f;
+		return eval_specular(ray, N, L_out, pdf0, inside, through);
 	}
 
 	__device__ inline nanovdb::Vec3f BSDF::eval_glass(BSDF_EVAL_PARAMS) {
@@ -223,6 +267,8 @@ namespace penguinPT {
 		return nanovdb::Vec3f(pdf0);
 		
 	}
+
+	
 
 	__device__ inline nanovdb::Vec3f BSDF::eval_blinn_phong(BSDF_EVAL_PARAMS) {
 		return { 0.f, 0.f, 0.f };

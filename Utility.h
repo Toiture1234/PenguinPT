@@ -79,7 +79,38 @@ namespace penguinPT::util {
 		return (k > 0.0) ? v : v - r * k;
 	}
 
-	
+	__hostdev__ nanovdb::Vec3f sphericalDirection(float sinT, float cosT, float phi) {
+		return nanovdb::Vec3f(sinT * cosf(phi), sinT * sinf(phi), cosT);
+	}
+	__hostdev__ float CosTheta(const nanovdb::Vec3f& w) { return w[2]; }
+	__hostdev__ float Cos2Theta(const nanovdb::Vec3f& w) { return w[2] * w[2]; }
+
+	__hostdev__ float Sin2Theta(const nanovdb::Vec3f& w) { return CLAMP(1.f - CosTheta(w), 0.f, 1.f); }
+	__hostdev__ float SinTheta(const nanovdb::Vec3f& w) { return sqrtf(Sin2Theta(w)); }
+
+	__hostdev__ float TanTheta(const nanovdb::Vec3f& w) { return SinTheta(w) / CosTheta(w); }
+	__hostdev__ float Tan2Theta(const nanovdb::Vec3f& w) { return Sin2Theta(w) / Cos2Theta(w); }
+
+	__hostdev__ float CosPhi(const nanovdb::Vec3f& w) {
+		float sinTheta = SinTheta(w);
+		return sinTheta == 0.f ? 1.f : CLAMP(w[0] / sinTheta, -1.f, 1.f);
+	}
+	__hostdev__ float SinPhi(const nanovdb::Vec3f& w) {
+		float sinTheta = SinTheta(w);
+		return sinTheta == 0.f ? 0.f : CLAMP(w[1] / sinTheta, -1.f, 1.f);
+	}
+
+	__hostdev__ float Cos2Phi(const nanovdb::Vec3f& w) { return CosPhi(w) * CosPhi(w); }
+	__hostdev__ float Sin2Phi(const nanovdb::Vec3f& w) { return SinPhi(w) * SinPhi(w); }
+
+	__hostdev__ inline nanovdb::Vec3f ToWorld(nanovdb::Vec3f& X, nanovdb::Vec3f& Y, nanovdb::Vec3f& Z, nanovdb::Vec3f& V) 
+	{
+		return V[0] * X + V[1] * Y + V[2] * Z;
+	}
+	__device__ inline nanovdb::Vec3f ToLocal(nanovdb::Vec3f X, nanovdb::Vec3f Y, nanovdb::Vec3f Z, nanovdb::Vec3f V)
+	{
+		return nanovdb::Vec3f(V.dot(X), V.dot(Y), V.dot(Z));
+	}
 }
 namespace penguinPT {
 	// stores data from hit surface to lighten intersection functions
