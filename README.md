@@ -13,5 +13,5 @@
   - temperature grid
   - materials
   - XML mitsuba file format
-  - Envmap
+  - Envmap 🗸 (at least evaluation)
   - Setting for english keyboards
