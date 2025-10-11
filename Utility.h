@@ -68,6 +68,23 @@ namespace penguinPT::util {
 		float y = r * sinf(a);
 		return { x, y, z };
 	}
+	__hostdev__ inline nanovdb::Vec3f cosineSampleHemisphere(float u1, float u2) {
+		u1 = u1 * 2.f - 1.f, u2 = u2 * 2.f - 1.f;
+		if (u1 == 0.f && u2 == 0.f) return nanovdb::Vec3f(0.f, 0.f, 1.f);
+
+		float theta, r;
+		if (fabsf(u1) > fabsf(u2)) {
+			r = u1;
+			theta = PI_OVER_4 * (u2 / u1);
+		}
+		else {
+			r = u2;
+			theta = PI_OVER_2 - PI_OVER_4 * (u1 / u2);
+		}
+		float cos_theta = r * cosf(theta), sin_theta = r * sinf(theta);
+		float z = sqrtf(fmaxf(1.f - cos_theta * cos_theta - sin_theta * sin_theta, 0.f));
+		return nanovdb::Vec3f(cos_theta, sin_theta, z);
+	}
 	// omg Inigo Quilez you saved my life
 	__hostdev__ inline nanovdb::Vec3f refIfNeg(nanovdb::Vec3f v, nanovdb::Vec3f r) {
 		float k = v.dot(r);

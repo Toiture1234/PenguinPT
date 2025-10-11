@@ -28,7 +28,7 @@
 
 typedef curandStatePhilox4_32_10_t Rand_state;
 #define randC(state) curand_uniform(state)
-#define rand_both(state, roC) roC ? curand_uniform(state) : rand()
+#define rand01 ((float)rand() / (float)RAND_MAX)
 
 #define CUDA_CHECK(expr) if(expr != CUDA_SUCCESS) { printf("CUDA ERROR AT LINE %i IN %s : %s \n", __LINE__, __FILE__, cudaGetErrorString(expr)); exit(99); }
 
@@ -39,11 +39,16 @@ typedef curandStatePhilox4_32_10_t Rand_state;
 #define INV_TWO_PI 0.15915494309189533576888376337251f
 #define INV_PI 0.31830988618379067153776752674503f
 #define INV_4_PI 0.07957747154594766788444188168626f
+#define PI_OVER_4 0.78539816339744830961566084581988f
+#define PI_OVER_2 1.5707963267948966192313216916398f
 
 #include "Utility.h"
 #include "Microfacet.h"
 #include "Material.h"
+#include "phase_function.h"
 #include "volumes.h"
+#include "hdr_loader.h"
+#include "envmap.h"
 #include "intersectors.h"
 #include "camera.h"
 #include "renderer_services.h"

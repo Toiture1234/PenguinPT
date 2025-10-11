@@ -24,12 +24,15 @@
   <ItemGroup>
     <ClInclude Include="api.h" />
     <ClInclude Include="camera.h" />
+    <ClInclude Include="envmap.h" />
+    <ClInclude Include="hdr_loader.h" />
     <ClInclude Include="intersectors.h" />
     <ClInclude Include="Material.h" />
     <ClInclude Include="Microfacet.h" />
     <ClInclude Include="nanovdb_loader.h" />
     <ClInclude Include="obj_loader.h" />
     <ClInclude Include="pathtracer.h" />
+    <ClInclude Include="phase_function.h" />
     <ClInclude Include="renderer_services.h" />
     <ClInclude Include="Utility.h" />
     <ClInclude Include="volumes.h" />

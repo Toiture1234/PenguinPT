@@ -35,7 +35,15 @@ namespace penguinPT {
 	public:
 		nanovdb::Vec3f box_min = nanovdb::Vec3f(1e30f), box_max = nanovdb::Vec3f(-1e30f);
 		void grow(nanovdb::Vec3f p) {
-			box_min = MIN_3(box_min, p), box_max = MAX_3(box_max, p);
+			//box_min = box_min.minComponent(p), box_max = box_max.maxComponent(p);
+			box_min = MIN_3(box_min, p);
+			box_max = MAX_3(box_max, p);
+		}
+		void grow(AABB& b) {
+			if (b.box_min[0] != 1e30f) {
+				grow(b.box_min);
+				grow(b.box_max);
+			}
 		}
 		float area() {
 			nanovdb::Vec3f e = box_max - box_min;
@@ -44,6 +52,14 @@ namespace penguinPT {
 
 		__hostdev__ AABB() {}
 		__hostdev__ ~AABB() {}
+	};
+	class BIN {
+	public:
+		AABB bounds;
+		int triangle_count = 0;
+
+		__hostdev__ BIN() {}
+		__hostdev__ ~BIN() {}
 	};
 
 	// -----------------------------------------------------------------------
@@ -172,34 +188,42 @@ namespace penguinPT {
 		// BSDF
 		BSDF* bsdf_list;
 
+		// ENVMAP
+		Envmap environnement_map;
+
 		// CUDA transfer to GPU memory, only transfer BVH and triangles information 
 		void send_to_gpu_solid() {
-			// create temporary buffers
-			Triangle* temp_triangles = triangles;
-			BVH_node* temp_nodes = nodes;
-			unsigned int* temp_triangle_indicies = triangle_indicies;
+			if (num_of_triangles != 0) {
+				// create temporary buffers
+				Triangle* temp_triangles = triangles;
+				BVH_node* temp_nodes = nodes;
+				unsigned int* temp_triangle_indicies = triangle_indicies;
 
-			// GPU memory allocation
-			CUDA_CHECK(cudaMalloc((void**)&triangles, num_of_triangles * sizeof(Triangle)));
-			CUDA_CHECK(cudaMalloc((void**)&nodes, (2 * num_of_triangles - 1) * sizeof(BVH_node)));
-			CUDA_CHECK(cudaMalloc((void**)&triangle_indicies, num_of_triangles * sizeof(unsigned int)));
+				// GPU memory allocation
+				CUDA_CHECK(cudaMalloc((void**)&triangles, num_of_triangles * sizeof(Triangle)));
+				CUDA_CHECK(cudaMalloc((void**)&nodes, (2 * num_of_triangles - 1) * sizeof(BVH_node)));
+				CUDA_CHECK(cudaMalloc((void**)&triangle_indicies, num_of_triangles * sizeof(unsigned int)));
 			
-			// Send data to gpu
-			CUDA_CHECK(cudaMemcpy(triangles, temp_triangles, num_of_triangles * sizeof(Triangle), cudaMemcpyHostToDevice));
-			CUDA_CHECK(cudaMemcpy(nodes, temp_nodes, (2 * num_of_triangles - 1) * sizeof(BVH_node), cudaMemcpyHostToDevice));
-			CUDA_CHECK(cudaMemcpy(triangle_indicies, temp_triangle_indicies, num_of_triangles * sizeof(unsigned int), cudaMemcpyHostToDevice));
+				// Send data to gpu
+				CUDA_CHECK(cudaMemcpy(triangles, temp_triangles, num_of_triangles * sizeof(Triangle), cudaMemcpyHostToDevice));
+				CUDA_CHECK(cudaMemcpy(nodes, temp_nodes, (2 * num_of_triangles - 1) * sizeof(BVH_node), cudaMemcpyHostToDevice));
+				CUDA_CHECK(cudaMemcpy(triangle_indicies, temp_triangle_indicies, num_of_triangles * sizeof(unsigned int), cudaMemcpyHostToDevice));
 			
-			// delete temporary buffers
-			free(temp_triangles);
-			free(temp_nodes);
-			free(temp_triangle_indicies);
+				// delete temporary buffers
+				free(temp_triangles);
+				free(temp_nodes);
+				free(temp_triangle_indicies);
+			}
 		}
 		void send_to_gpu_volumes() {
-			Volume* temp_volumes = volumes;
+			if (num_of_volumes != 0) {
+				Volume* temp_volumes = volumes;
 
-			cudaMalloc((void**)&volumes, num_of_volumes * sizeof(Volume));
-			cudaMemcpy(volumes, temp_volumes, num_of_volumes * sizeof(Volume), cudaMemcpyHostToDevice);
-			free(temp_volumes);
+				cudaMalloc((void**)&volumes, num_of_volumes * sizeof(Volume));
+				cudaMemcpy(volumes, temp_volumes, num_of_volumes * sizeof(Volume), cudaMemcpyHostToDevice);
+
+				free(temp_volumes);
+			}
 		}
 
 		// create BVH
@@ -237,6 +261,8 @@ namespace penguinPT {
 	//                                  BVH Building
 	// --------------------------------------------------------------------------------
 	void Scene_data::build_BVH() {
+		if (num_of_triangles == 0) return;
+		auto timer_start = std::chrono::high_resolution_clock::now();
 		for (int i = 0; i < num_of_triangles; i++) {
 			triangles[i].Origin = (triangles[i].A + triangles[i].B + triangles[i].C) * 0.3333f;
 		}
@@ -246,7 +272,10 @@ namespace penguinPT {
 
 		update_nodes_bounds(root_node_idx);
 		subdivide(root_node_idx);
+		auto timer_end = std::chrono::high_resolution_clock::now();
+		auto exe_duration = std::chrono::duration_cast<std::chrono::milliseconds>(timer_end - timer_start).count();
 
+		printf("BVH created, took %lld milliseconds.\n", exe_duration);
 		printf("BVH size : %i, Nodes used : %i\n", 2 * num_of_triangles - 1, nodes_used);
 	}
 #define BIAS_GROW 0.01f
@@ -257,29 +286,83 @@ namespace penguinPT {
 		for (int first = node.leftFirst, i = 0; i < node.triangleCount; i++) {
 			int leafTriIdx = triangle_indicies[first + i];
 			Triangle& leafTri = triangles[leafTriIdx];
-			node.boxMin = MIN_3(node.boxMin, (leafTri.A - nanovdb::Vec3f(BIAS_GROW)));
-			node.boxMin = MIN_3(node.boxMin, (leafTri.B - nanovdb::Vec3f(BIAS_GROW)));
-			node.boxMin = MIN_3(node.boxMin, (leafTri.C - nanovdb::Vec3f(BIAS_GROW)));
-			node.boxMax = MAX_3(node.boxMax, (leafTri.A + nanovdb::Vec3f(BIAS_GROW)));
-			node.boxMax = MAX_3(node.boxMax, (leafTri.B + nanovdb::Vec3f(BIAS_GROW)));
-			node.boxMax = MAX_3(node.boxMax, (leafTri.C + nanovdb::Vec3f(BIAS_GROW)));
+			node.boxMin = node.boxMin.minComponent(leafTri.A - nanovdb::Vec3f(BIAS_GROW));
+			node.boxMin = node.boxMin.minComponent(leafTri.B - nanovdb::Vec3f(BIAS_GROW));
+			node.boxMin = node.boxMin.minComponent(leafTri.C - nanovdb::Vec3f(BIAS_GROW));
+			node.boxMax = node.boxMax.maxComponent(leafTri.A + nanovdb::Vec3f(BIAS_GROW));
+			node.boxMax = node.boxMax.maxComponent(leafTri.B + nanovdb::Vec3f(BIAS_GROW));
+			node.boxMax = node.boxMax.maxComponent(leafTri.C + nanovdb::Vec3f(BIAS_GROW));
 		}
 	}
-#define NUM_TEST_SPLIT 500
+#define NUM_TEST_SPLIT 50
 	float Scene_data::find_best_plane(BVH_node& node, int& axis, float& split) {
 		float bCost = 1e30;
 		for (int a = 0; a < 3; a++) {
-			float bMin = node.boxMin[a];
-			float bMax = node.boxMax[a];
+			float bMin = 1e30f, bMax = -1e30f;
 
-			if (bMin == bMax) continue;
-			float scale = (bMax - bMin) / (float)NUM_TEST_SPLIT;
+			
+			// smaller box
+			for (int i = 0; i < node.triangleCount; i++) {
+				Triangle& tri = triangles[triangle_indicies[node.leftFirst + i]];
+
+				bMin = std::min(bMin, tri.Origin[a]);
+				bMax = std::max(bMax, tri.Origin[a]);
+			}
+			//printf("A");
+			
+			// bins
+			BIN bin[NUM_TEST_SPLIT];
+			float scale = NUM_TEST_SPLIT / (bMax - bMin);
+			for (unsigned int i = 0; i < node.triangleCount; i++) {
+				Triangle& tri = triangles[triangle_indicies[node.leftFirst + i]];
+				int binIDX = CLAMP((int)( (tri.Origin[a] - bMin) * scale), 0, NUM_TEST_SPLIT - 1);
+				bin[binIDX].triangle_count++;
+				//printf("a");
+				bin[binIDX].bounds.grow(tri.A);
+				//printf("b");
+				bin[binIDX].bounds.grow(tri.B);
+				//printf("c");
+				bin[binIDX].bounds.grow(tri.C);
+				//printf("d");
+			}
+			//printf("B");
+			
+			float leftArea[NUM_TEST_SPLIT - 1], rightArea[NUM_TEST_SPLIT - 1];
+			int leftCount[NUM_TEST_SPLIT - 1], rightCount[NUM_TEST_SPLIT - 1];
+			AABB leftBox, rightBox;
+			int leftSum = 0, rightSum = 0;
+			for (int i = 0; i < NUM_TEST_SPLIT - 1; i++) 
+			{
+				leftSum += bin[i].triangle_count;
+				leftCount[i] = leftSum;
+				leftBox.grow(bin[i].bounds);
+				leftArea[i] = leftBox.area();
+
+				rightSum += bin[NUM_TEST_SPLIT - 1 - i].triangle_count;
+				rightCount[NUM_TEST_SPLIT - 2 - i] = rightSum;
+				rightBox.grow(bin[NUM_TEST_SPLIT - 1 - i].bounds);
+				rightArea[NUM_TEST_SPLIT - 2 - i] = rightBox.area();
+			}
+			
+			/*if (bMin == bMax) continue;
+			scale = (bMax - bMin) / (float)NUM_TEST_SPLIT;
 			for (int i = 1; i < NUM_TEST_SPLIT; i++) {
 				float cP = bMin + i * scale;
 				float cost = eval_SAH(node, a, cP);
 				if (cost < bCost)
 					split = cP, axis = a, bCost = cost;
+			}*/
+			//printf("C");
+			
+			scale = (float)(bMax - bMin) / (float)NUM_TEST_SPLIT;
+			for (int i = 0; i < NUM_TEST_SPLIT - 1; i++) 
+			{
+				float planeCost = leftCount[i] * leftArea[i] + rightCount[i] * rightArea[i];
+				if (planeCost < bCost) {
+					axis = a, split = bMin + scale * (i + 1), bCost = planeCost;
+				}
 			}
+			//printf("D");
 		}
 		return bCost;
 	}
@@ -354,6 +437,8 @@ namespace penguinPT {
 
 		float t = 1e30f;
 		bool hit = false;
+
+		if (num_of_triangles == 0) return false;
 
 		while (stackIdx > 0)
 		{

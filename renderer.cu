@@ -89,37 +89,51 @@ namespace penguinPT {
     extern "C" void run() 
     {
         renderer_services rs;
-        rs.mainCam.speed = 3.f;
+        rs.mainCam.speed = 5.f;
         rs.mainCam.zoom = 1.f;
         rs.fill_host_pixel_buffer();
         initCuda(rs);
 
         loader::obj_loader loader01;
         loader::nanovdb_loader loader02;
+        loader::envmap_loader loader03;
 
-        loader01.load_obj("horse_statue.obj", { 0.f, 0.f, 0.f }, 20.f);
+        loader01.load_obj("horse_statue.obj", { 0.f, 0.05f, 0.f }, 20.f, 1U);
+        loader01.load_obj("just_a_plane.obj", { 0.f, 0.f, 0.f }, 50.f, 2U);
         loader01.send_to_scene(rs.scene);
         
         rs.scene.build_BVH();
         rs.scene.send_to_gpu_solid();
-
+       
         // load quickly bsdf, TODO : move !!
-        BSDF* h_list = new BSDF[2];
+
+        BSDF* h_list = new BSDF[3];
         h_list[0].bsdf_type = BSDF_through;
+
         h_list[1].bsdf_type = BSDF_specular;
-        h_list[1].roughness = 0.f;
+        h_list[1].roughness = 0.1f;
         h_list[1].IOR = 1.5f;
         h_list[1].metalness = 1.f;
-        h_list[1].albedo = nanovdb::Vec3f(0.4f, 0.5f, 0.6f);
+        h_list[1].albedo = nanovdb::Vec3f(0.5f, 0.3f, 0.05f);
+
+        h_list[2].bsdf_type = BSDF_blinn_phong;
+        h_list[2].roughness = 0.2f;
+        h_list[2].IOR = 1.5f;
+        h_list[2].metalness = 0.f;
+        h_list[2].albedo = nanovdb::Vec3f(0.5f, 0.55f, 0.6f);
         
         // transfer
-        cudaMalloc((void**)&rs.scene.bsdf_list, 2 * sizeof(BSDF));
-        cudaMemcpy(rs.scene.bsdf_list, h_list, 2 * sizeof(BSDF), cudaMemcpyHostToDevice);
+        cudaMalloc((void**)&rs.scene.bsdf_list, 3 * sizeof(BSDF));
+        cudaMemcpy(rs.scene.bsdf_list, h_list, 3 * sizeof(BSDF), cudaMemcpyHostToDevice);
 
         delete[] h_list;
 
+        // ENVMAP
+        loader03.load_from_file("assets/hdris/sky_bright.hdr");
+        loader03.send_to_gpu(rs.scene.environnement_map, cudaFilterModeLinear);
+
         //loader02.load_nvdb("volume.nvdb");
-        //loader02.volume_parameters(0, 2.f, nanovdb::Vec3f(1.f), 0.f);
+        //loader02.volume_parameters(0, 2.f, nanovdb::Vec3f(0.45f), -0.4f);
         //loader02.set_tranforms(0, 0.1f, nanovdb::Vec3f(0.f, 0.f, 5.f));
 
         loader02.send_to_scene(rs.scene);
@@ -151,7 +165,7 @@ namespace penguinPT {
             window.display();
 
             rs.delta_time = mainClock.restart().asSeconds();
-            gotoxy(0, 5);
+            gotoxy(1, 6);
             printf("FPS : %f\n", 1.f / rs.delta_time);
             rs.frame_index++;
         }

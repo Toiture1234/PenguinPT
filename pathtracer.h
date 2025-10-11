@@ -68,10 +68,12 @@ namespace penguinPT {
 			info.normal = util::refIfNeg(info.normal, -ray.dir());
 			
 			if (!hit) {
-				L += ray.dir().dot(nanovdb::Vec3f(1.f).normalize()) > 0.8f ? nanovdb::Vec3f(1.f) * throughput * 2.f : nanovdb::Vec3f(0.f);
+				//L += ray.dir().dot(nanovdb::Vec3f(1.f).normalize()) > 0.95f ? nanovdb::Vec3f(1.f) * throughput * 15.f : nanovdb::Vec3f(0.f);
 				//L += nanovdb::Vec3f(ray.dir()[1] * 0.5f + 0.5f) * throughput;
 				//L += fmaxf(sinf(ray.dir()[0] * 5.f) * sinf(ray.dir()[2] * 5.f), 0.f) * throughput;
-				L += util::mix(0.5f, 1.f, ray.dir()[1] * 0.5f + 0.5f) * nanovdb::Vec3f(0.8f, 0.9f, 1.f) * throughput * 0.3f;
+				//L += util::mix(0.5f, 1.f, ray.dir()[1] * 0.5f + 0.5f) * nanovdb::Vec3f(0.8f, 0.9f, 1.f) * throughput * 0.3f;
+				float pdf_e;
+				L += rs.scene.environnement_map.eval_envmap(ray.dir(), pdf_e) * throughput;
 				break;
 			}
 
@@ -84,12 +86,12 @@ namespace penguinPT {
 			}
 
 			if (interact_volume) {
-				nanovdb::Vec3f L_dir = util::generateUniformSample(rs.rng_state);
+				nanovdb::Vec3f wi;
+				nanovdb::Vec3f phase_L = phase_function::Henyey_greenstein::sample(ray.dir(), wi, this_volume.g, scatterPDF, rs.rng_state);
 				
-				scatterPDF = INV_4_PI;
-				bsdf_value = nanovdb::Vec3f(scatterPDF) * this_volume.albedo;
+				bsdf_value = phase_L * this_volume.albedo;
 
-				ray.reset(ray(info.t), L_dir);
+				ray.reset(ray(info.t), wi);
 			}
 			else {
 				// account for attenuation
@@ -104,7 +106,7 @@ namespace penguinPT {
 				ray.reset(ray(info.t), L_dir);
 				safe_both(info.normal, ray, through);
 
-				//if (through) attenuation = surface_bsdf.attenuation;
+				if (through) attenuation = surface_bsdf.attenuation;
 			}
 
 			if (scatterPDF > 0.0001f) throughput = throughput * bsdf_value / scatterPDF;

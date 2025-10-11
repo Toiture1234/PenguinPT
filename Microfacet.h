@@ -1,7 +1,6 @@
 #pragma once
 
 namespace penguinPT::Microfacet {
-	// microfacet reflection
 	class Microfacet_distribubtion {
 	public:
 		__hostdev__ virtual float D(const nanovdb::Vec3f& wh) const = 0;
@@ -33,6 +32,7 @@ namespace penguinPT::Microfacet {
 		}
 
 		__device__ nanovdb::Vec3f sample_wh(Rand_state& rngState) const;
+		__host__ nanovdb::Vec3f sample_wh_host() const;
 
 		__hostdev__ float D(const nanovdb::Vec3f& wh) const;
 
@@ -78,6 +78,33 @@ namespace penguinPT::Microfacet {
 			float logSample = logf(u1);
 			phi = atanf(alphay / alphax * tanf(TWO_PI * u2 + 0.5f * PI));
 			if (u2 > 0.f) phi += PI;
+
+			float sinPhi = sinf(phi), cosPhi = cosf(phi);
+			float alphax2 = alphax * alphax, alphay2 = alphay * alphay;
+			tan2Theta = -logSample / (cosPhi * cosPhi / alphax2 + sinPhi * sinPhi / alphay2);
+		}
+		float cosTheta = 1.f / sqrtf(1.f + tan2Theta);
+		float sinTheta = sqrtf(fmaxf(1.f - cosTheta * cosTheta, 0.f));
+
+		nanovdb::Vec3f wh = nanovdb::Vec3f(sinTheta * cosf(phi), sinTheta * sinf(phi), cosTheta);
+		wh *= SIGN(wh[2]);
+		return wh;
+	}
+	__host__ nanovdb::Vec3f Beckmann_distribution::sample_wh_host() const {
+		float tan2Theta, phi;
+		float u1 = rand01;
+		float u2 = rand01;
+
+		if (alphax == alphay) {
+			float logSample = logf(1.f - u1);
+			if (isinf(logSample)) logSample = 0.f;
+			tan2Theta = -alphax * alphax * logSample;
+			phi = u2 * TWO_PI;
+		}
+		else {
+			float logSample = logf(u1);
+			phi = atanf(alphay / alphax * tanf(TWO_PI * u2 + 0.5f * PI));
+			if (u2 > 0.5f) phi += PI;
 
 			float sinPhi = sinf(phi), cosPhi = cosf(phi);
 			float alphax2 = alphax * alphax, alphay2 = alphay * alphay;

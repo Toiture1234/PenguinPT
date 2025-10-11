@@ -1,6 +1,7 @@
 #pragma once
 
 #define SCALE 10.f
+
 namespace penguinPT::loader {
 	// utility for reading lines
 	// assume the current character is not an escape
@@ -42,11 +43,11 @@ namespace penguinPT::loader {
 
 		unsigned int triangles_num = 0;
 
-		bool load_obj(std::string path, nanovdb::Vec3f position, float scale);
+		bool load_obj(std::string path, nanovdb::Vec3f position, float scale, unsigned int BSDF_id = BASE_BSDF);
 		void send_to_scene(Scene_data& scene);
 	};
 
-	bool obj_loader::load_obj(std::string path, nanovdb::Vec3f position, float scale) {
+	bool obj_loader::load_obj(std::string path, nanovdb::Vec3f position, float scale, unsigned int BSDF_id) {
 
 		bool normals = false;
 		bool uvs = false;
@@ -106,6 +107,8 @@ namespace penguinPT::loader {
 						tr.nB = normal_list.at(normalB);
 						tr.nC = normal_list.at(normalC);
 
+						tr.BSDF_index = BSDF_id;
+
 						triangle_list.push_back(tr);
 					}
 					else if (normals) { // normals but not uvs
@@ -124,6 +127,8 @@ namespace penguinPT::loader {
 						tr.nB = normal_list.at(normalB);
 						tr.nC = normal_list.at(normalC);
 
+						tr.BSDF_index = BSDF_id;
+
 						triangle_list.push_back(tr);
 					}
 					else if (uvs) { // uvs but not normals
@@ -137,7 +142,9 @@ namespace penguinPT::loader {
 						uvB = std::stoi(tokens.at(4)) - 1 + uv_start;
 						uvC = std::stoi(tokens.at(6)) - 1 + uv_start;
 
-						triangle_list.push_back(Triangle(vertices_list.at(verticeA), vertices_list.at(verticeB), vertices_list.at(verticeC)));
+						Triangle tr(vertices_list.at(verticeA), vertices_list.at(verticeB), vertices_list.at(verticeC));
+						tr.BSDF_index = BSDF_id;
+						triangle_list.push_back(tr);
 					}
 					else { // only points, do nothing special
 						//std::cout << "only points\n";
@@ -146,7 +153,9 @@ namespace penguinPT::loader {
 						verticeB = std::stoi(tokens.at(2)) - 1 + vertex_start;
 						verticeC = std::stoi(tokens.at(3)) - 1 + vertex_start;
 
-						triangle_list.push_back(Triangle(vertices_list.at(verticeA), vertices_list.at(verticeB), vertices_list.at(verticeC)));
+						Triangle tr(vertices_list.at(verticeA), vertices_list.at(verticeB), vertices_list.at(verticeC));
+						tr.BSDF_index = BSDF_id;
+						triangle_list.push_back(tr);
 					}
 					
 					triangles_num++;
