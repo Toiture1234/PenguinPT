@@ -4,7 +4,7 @@
 #define QUICK_DIFFUSE
 #define MAX_DISTANCE 1.0e30f
 #define BOUNCES_PT 10
-#define BOUNCES_PT_VOL 128
+#define BOUNCES_PT_VOL 512
 #define SAFE_OFFSET 0.005f
 
 #include "cuda_runtime.h"
@@ -55,4 +55,4 @@ typedef curandStatePhilox4_32_10_t Rand_state;
 #include "pathtracer.h"
 #include "obj_loader.h"
 #include "nanovdb_loader.h"
-#include "xml_scene_loader.h"
+#include "usd_scene_loader.h"

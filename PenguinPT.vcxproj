@@ -36,7 +36,7 @@
     <ClInclude Include="renderer_services.h" />
     <ClInclude Include="Utility.h" />
     <ClInclude Include="volumes.h" />
-    <ClInclude Include="xml_scene_loader.h" />
+    <ClInclude Include="usd_scene_loader.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />

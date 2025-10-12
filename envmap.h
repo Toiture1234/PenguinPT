@@ -3,13 +3,14 @@
 namespace penguinPT {
 	class Envmap {
 	public:
-		__hostdev__ Envmap() : width(0), height(0) {}
+		__hostdev__ Envmap() : width(0), height(0), strength(1.f) {}
 		__hostdev__ ~Envmap() {}
 
 		cudaTextureObject_t image = 0;
 		
 
 		unsigned int width, height;
+		float strength;
 
 		__device__ nanovdb::Vec3f eval_envmap(nanovdb::Vec3f wi, float& pdf);
 	};
@@ -22,11 +23,11 @@ namespace penguinPT {
 
 			__hostdev__ envmap_loader() : data(nullptr), width(0), height(0) {}
 			__hostdev__ ~envmap_loader() {
-				//free(data);
+				free(data);
 			}
 
 			bool load_from_file(std::string path);
-			bool send_to_gpu(Envmap& source, cudaTextureFilterMode filter);
+			bool send_to_gpu(Envmap& source, cudaTextureFilterMode filter) const;
 		};
 	}
 }
@@ -40,7 +41,7 @@ bool penguinPT::loader::envmap_loader::load_from_file(std::string path) {
 	return true;
 }
 
-bool penguinPT::loader::envmap_loader::send_to_gpu(Envmap& source, cudaTextureFilterMode filter) {
+bool penguinPT::loader::envmap_loader::send_to_gpu(Envmap& source, cudaTextureFilterMode filter) const {
 	source.width = this->width;
 	source.height = this->height;
 
@@ -62,7 +63,7 @@ bool penguinPT::loader::envmap_loader::send_to_gpu(Envmap& source, cudaTextureFi
 		memset(&texDesc, 0, sizeof(texDesc));
 		texDesc.addressMode[0] = cudaAddressModeWrap;
 		texDesc.addressMode[1] = cudaAddressModeWrap;
-		texDesc.filterMode = cudaFilterModeLinear;
+		texDesc.filterMode = filter;
 		texDesc.readMode = cudaReadModeElementType;
 		texDesc.normalizedCoords = true;
 
@@ -80,7 +81,7 @@ nanovdb::Vec3f penguinPT::Envmap::eval_envmap(nanovdb::Vec3f wi, float& pdf) {
 	float2 uv = make_float2((PI + atan2f(wi[2], wi[0])) * INV_TWO_PI, theta * INV_PI);
 
 	float4 read = tex2D<float4>(this->image, uv.x, uv.y);
-	return { read.x, read.y, read.z };
+	return { read.x * strength, read.y * strength, read.z * strength };
 	//return nanovdb::Vec3f(1.f);
 
 	// skip pdf part now

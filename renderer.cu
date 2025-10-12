@@ -98,8 +98,8 @@ namespace penguinPT {
         loader::nanovdb_loader loader02;
         loader::envmap_loader loader03;
 
-        loader01.load_obj("horse_statue.obj", { 0.f, 0.05f, 0.f }, 20.f, 1U);
-        loader01.load_obj("just_a_plane.obj", { 0.f, 0.f, 0.f }, 50.f, 2U);
+        //loader01.load_obj("horse_statue.obj", { 0.f, 0.05f, 0.f }, 20.f, 1U);
+        //loader01.load_obj("just_a_plane.obj", { 0.f, 0.f, 0.f }, 50.f, 2U);
         loader01.send_to_scene(rs.scene);
         
         rs.scene.build_BVH();
@@ -131,10 +131,11 @@ namespace penguinPT {
         // ENVMAP
         loader03.load_from_file("assets/hdris/sky_bright.hdr");
         loader03.send_to_gpu(rs.scene.environnement_map, cudaFilterModeLinear);
+        rs.scene.environnement_map.strength = 0.5f;
 
-        //loader02.load_nvdb("volume.nvdb");
-        //loader02.volume_parameters(0, 2.f, nanovdb::Vec3f(0.45f), -0.4f);
-        //loader02.set_tranforms(0, 0.1f, nanovdb::Vec3f(0.f, 0.f, 5.f));
+        loader02.load_nvdb("volume.nvdb");
+        loader02.volume_parameters(0, 2.f, nanovdb::Vec3f(1.f), -0.4f);
+        loader02.set_tranforms(0, 0.1f, nanovdb::Vec3f(0.f, 0.f, 5.f));
 
         loader02.send_to_scene(rs.scene);
         rs.scene.send_to_gpu_volumes();

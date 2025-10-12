@@ -48,7 +48,7 @@
     <ClInclude Include="nanovdb_loader.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
-    <ClInclude Include="xml_scene_loader.h">
+    <ClInclude Include="usd_scene_loader.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
     <ClInclude Include="Microfacet.h">
