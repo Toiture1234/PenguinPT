@@ -6,7 +6,7 @@ namespace penguinPT {
 	class Volume {
 	public:
 		nanovdb::FloatGrid* density_grid; // density grid, on device side if cuda else on host
-		float sigma_t;
+		nanovdb::Vec3f sigma_t;
 		nanovdb::Vec3f albedo;
 		
 		// phase function
@@ -16,15 +16,19 @@ namespace penguinPT {
 		float scale = 1.f;
 		nanovdb::Vec3f position = { 0.f, 0.f, 0.f };
 
-		Volume() : density_grid(nullptr), sigma_t(0.f), albedo(0.f), g(0.f) {}
+		__hostdev__ Volume() : density_grid(nullptr), sigma_t(0.f), albedo(0.f), g(0.f) {}
 
-		__hostdev__ bool intersect_volume_replace(nanovdb::math::Ray<float> ray, float& t_out, nanovdb::Vec3f& normal, bool& inside) {
+		__hostdev__ bool intersect_volume_replace(nanovdb::math::Ray<float> ray, float& t_out, nanovdb::Vec3f& normal, Volume** all_volumes, int& nb_vol) {
 			ray.setEye((ray.eye() - position) / scale);
 			if (!ray.clip(density_grid->worldBBox())) return false;
 			float t0 = ray.t0();
 			float t1 = ray.t1();
 
-			inside = t0 <= 0.01f;
+			bool inside = t0 <= 0.01f;
+			if (inside) {
+				all_volumes[nb_vol] = this;
+				nb_vol++;
+			}
 			float t = (inside ? t1 : t0) * scale;
 			if (t > t_out) return false;
 			t_out = t;
@@ -42,12 +46,13 @@ namespace penguinPT {
 		}
 
 		__device__ bool delta_tracking(nanovdb::math::Ray<float> ray, float& t_out, Rand_state& state);
+		__hostdev__ bool is_point_inside(nanovdb::Vec3f pt) const ;
 	};
 
 	__device__ bool Volume::delta_tracking(nanovdb::math::Ray<float> ray, float& t_out, Rand_state& state) {
 		float t = 0.f;
 
-		float inv_sigma_T = 1.f / sigma_t;
+		float inv_sigma_T = 1.f / sigma_t.max();
 		for (int i = 0; i < DT_SAMPLES; i++) {
 			t -= logf(randC(&state)) * inv_sigma_T;
 
@@ -62,5 +67,10 @@ namespace penguinPT {
 			}
 		}
 		return false;
+	}
+	__hostdev__ bool Volume::is_point_inside(nanovdb::Vec3f pt) const {
+		pt -= position;
+		pt /= scale;
+		return density_grid->mWorldBBox.isInside(pt);
 	}
 }

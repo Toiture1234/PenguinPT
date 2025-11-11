@@ -4,6 +4,20 @@
 #define BSDF_TROUGH_ID 0
 
 namespace penguinPT {
+	class hit_info {
+	public:
+		nanovdb::Vec3f normal;
+		nanovdb::Vec3f trueNormal;
+		float t;
+		float2 uv = make_float2(0.f, 0.f);
+		nanovdb::Vec3u debug;
+		int BSDF_index;
+
+		Volume* all_volumes[VOLUME_STACK_SIZE];
+		int nb_vol;
+
+		__hostdev__ hit_info() : normal(0.f), t(0.f), debug(0), BSDF_index(0), trueNormal(0.f), nb_vol(0) {}
+	};
 
 	class Sphere {
 	public:
@@ -13,7 +27,7 @@ namespace penguinPT {
 		__hostdev__ Sphere() : center(0.f), radius(0.f) {}
 		__hostdev__ ~Sphere() {}
 	};
-	// simple triangle class, maybe would grow up later with normals and textures
+	// simple triangle class, need to be smaller and have normals and verticies in an other array
 	class Triangle {
 	public:
 		nanovdb::Vec3f A, B, C, Origin;
@@ -22,6 +36,13 @@ namespace penguinPT {
 		__hostdev__ Triangle() : A(0.f), B(0.f), C(0.f), Origin(0.f), nA(0.f), nB(0.f), nC(0.f), BSDF_index(BASE_BSDF) {}
 		__hostdev__ Triangle(nanovdb::Vec3f a, nanovdb::Vec3f b, nanovdb::Vec3f c) : A(a), B(b), C(c), Origin(0.f), nA(0.f), nB(0.f), nC(0.f), BSDF_index(BASE_BSDF) {}
 		__hostdev__ ~Triangle(){}
+	};
+	class Triangle_data {
+	public:
+		nanovdb::Vec3f nA, nB, nC;
+		unsigned int BSDF_index;
+		__hostdev__ Triangle_data() : nA(0.f), nB(0.f), nC(0.f), BSDF_index(BASE_BSDF) {};
+		__hostdev__ ~Triangle_data() {}
 	};
 	class BVH_node {
 	public:
@@ -99,7 +120,7 @@ namespace penguinPT {
 		float u = d * (-q).dot(v2v0);
 		float v = d * q.dot(v1v0);
 		float t = d * (-n).dot(rov0);
-		if (u < 0.0f || v < 0.0f || (u + v) > 1.0f || t > t_out || t < 0.f) return false;
+		if (u < 0.0f || v < 0.0f || (u + v) > 1.0f || t > t_out || t < 0.001f) return false;
 		float w = 1.f - u - v;
 
 		uv = make_float2(u, v);
@@ -147,8 +168,9 @@ namespace penguinPT {
 	// Scene class, contains an array of triangles and support for BVH, be carefull if you use the BVH to have initialized triangles
 	class Scene_data {
 	public:
-		__hostdev__ Scene_data() : triangles(nullptr), 
-			num_of_triangles(0), 
+		__hostdev__ Scene_data() : triangles(nullptr),
+			num_of_triangles(0),
+			tr_data(nullptr),
 			triangle_indicies(nullptr), 
 			nodes(nullptr), 
 			root_node_idx(0), 
@@ -165,6 +187,7 @@ namespace penguinPT {
 			num_of_volumes(0) 
 		{
 			triangles = (Triangle*)malloc(n_tr * sizeof(Triangle));
+			tr_data = (Triangle_data*)malloc(n_tr * sizeof(Triangle_data));
 			triangle_indicies = (unsigned int*)malloc(n_tr * sizeof(unsigned int));
 			nodes = (BVH_node*)malloc((2 * n_tr - 1) * sizeof(BVH_node)); // maybe too much, to rewind when making BVH
 		}
@@ -172,6 +195,7 @@ namespace penguinPT {
 
 		// list of triangles in this scene
 		Triangle* triangles;
+		Triangle_data* tr_data;
 		unsigned int num_of_triangles;
 
 		// BVH
@@ -186,7 +210,7 @@ namespace penguinPT {
 		// volumes BVH ? 
 
 		// BSDF
-		BSDF* bsdf_list;
+		principled_BSDF* bsdf_list;
 
 		// ENVMAP
 		Envmap environnement_map;
@@ -196,16 +220,19 @@ namespace penguinPT {
 			if (num_of_triangles != 0) {
 				// create temporary buffers
 				Triangle* temp_triangles = triangles;
+				Triangle_data* temp_tr_data = tr_data;
 				BVH_node* temp_nodes = nodes;
 				unsigned int* temp_triangle_indicies = triangle_indicies;
 
 				// GPU memory allocation
 				CUDA_CHECK(cudaMalloc((void**)&triangles, num_of_triangles * sizeof(Triangle)));
+				CUDA_CHECK(cudaMalloc((void**)&tr_data, num_of_triangles * sizeof(Triangle_data)));
 				CUDA_CHECK(cudaMalloc((void**)&nodes, (2 * num_of_triangles - 1) * sizeof(BVH_node)));
 				CUDA_CHECK(cudaMalloc((void**)&triangle_indicies, num_of_triangles * sizeof(unsigned int)));
 			
 				// Send data to gpu
 				CUDA_CHECK(cudaMemcpy(triangles, temp_triangles, num_of_triangles * sizeof(Triangle), cudaMemcpyHostToDevice));
+				CUDA_CHECK(cudaMemcpy(tr_data, temp_tr_data, num_of_triangles * sizeof(Triangle_data), cudaMemcpyHostToDevice));
 				CUDA_CHECK(cudaMemcpy(nodes, temp_nodes, (2 * num_of_triangles - 1) * sizeof(BVH_node), cudaMemcpyHostToDevice));
 				CUDA_CHECK(cudaMemcpy(triangle_indicies, temp_triangle_indicies, num_of_triangles * sizeof(unsigned int), cudaMemcpyHostToDevice));
 			
@@ -213,6 +240,7 @@ namespace penguinPT {
 				free(temp_triangles);
 				free(temp_nodes);
 				free(temp_triangle_indicies);
+				free(temp_tr_data);
 			}
 		}
 		void send_to_gpu_volumes() {
@@ -480,10 +508,9 @@ namespace penguinPT {
 
 		// basic iterator loop, no BVH now, maybe later
 		for (unsigned int i = 0; i < num_of_volumes; i++) {
-			if (volumes[i].intersect_volume_replace(ray, info.t, info.normal, info.insideVolume)) { 
+			if (volumes[i].intersect_volume_replace(ray, info.t, info.normal, info.all_volumes, info.nb_vol)) { 
 				hit = true;
 				info.BSDF_index = BSDF_TROUGH_ID;
-				info.volumeIndex = i; // this works now but need to be changed later when multiple volumes
 			}
 		}
 		return hit;

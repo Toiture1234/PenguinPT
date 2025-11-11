@@ -1,36 +1,6 @@
 #pragma once
 
-#define SCALE 10.f
-
 namespace penguinPT::loader {
-	// utility for reading lines
-	// assume the current character is not an escape
-	std::string read_to_escape(std::string line, unsigned int& i) {
-		std::string result = "";
-
-		for (i; i < line.length(); i++) {
-			char c = line[i];
-			if (c == ' ' || c == '\n' || c == '/') return result;
-			else result += c;
-		}
-		return result;
-	}
-	std::vector<std::string> get_line_tokens(std::string line) {
-		unsigned int i = 0;
-		std::vector<std::string> tokens;
-
-		while (i < line.length()) {
-			char c = line[i];
-
-			if (c == ' ' || c == '/') i++;
-			else if (c == '\n') break;
-			else {
-				tokens.push_back(read_to_escape(line, i));
-			}
-		}
-		return tokens;
-	}
-
 	class obj_loader {
 	public:
 		obj_loader() {}
@@ -61,7 +31,7 @@ namespace penguinPT::loader {
 		if (file.is_open()) {
 			std::string line;
 			while (std::getline(file, line)) {
-				std::vector<std::string> tokens = get_line_tokens(line);
+				std::vector<std::string> tokens = file_util::get_line_tokens(line, {' ', '/'});
 				
 				if (tokens.at(0) == "v") {
 					//std::cout << "Vertice\n";
@@ -183,5 +153,91 @@ namespace penguinPT::loader {
 		vertices_list.clear();
 		normal_list.clear();
 		uv_list.clear();
+	}
+
+	class BSDF_loader {
+	public:
+		
+		BSDF_loader() {
+			principled_BSDF zero;
+			zero.is_through = true;
+			BSDF_list.push_back(zero);
+			BSDF_name.push_back("zero");
+		}
+		~BSDF_loader() {}
+
+		std::vector<principled_BSDF> BSDF_list;
+		std::vector<std::string> BSDF_name;
+
+		void create_new_BSDF(std::string name,
+			float roughness,
+			nanovdb::Vec3f albedo,
+			nanovdb::Vec3f emission,
+			nanovdb::Vec3f absorption,
+			float metalness,
+			float ior,
+			float transparency);
+		void create_new_BSDF(std::string name, nanovdb::Vec3f albedo, float roughness);
+		void send_to_gpu(Scene_data& scene);
+
+		int gifm(std::string name);
+	};
+
+	void BSDF_loader::create_new_BSDF(std::string name, 
+		float roughness,
+		nanovdb::Vec3f albedo,
+		nanovdb::Vec3f emission,
+		nanovdb::Vec3f absorption,
+		float metalness,
+		float ior,
+		float transparency)
+	{
+		principled_BSDF current;
+		current.roughness = roughness;
+		current.albedo = albedo;
+		current.emission = emission;
+		current.absorption = absorption;
+		current.metalness = metalness;
+		current.ior = ior;
+		current.transparency = transparency;
+
+		BSDF_list.push_back(current);
+		BSDF_name.push_back(name);
+	}
+	void BSDF_loader::create_new_BSDF(std::string name, 
+		nanovdb::Vec3f albedo, float roughness) {
+		principled_BSDF current;
+		current.albedo = albedo;
+		current.roughness = roughness;
+
+		BSDF_list.push_back(current);
+		BSDF_name.push_back(name);
+	}
+	void BSDF_loader::send_to_gpu(Scene_data& scene) {
+		principled_BSDF* host_list = new principled_BSDF[BSDF_list.size()];
+		for (int i = 0; i < BSDF_list.size(); i++) {
+			std::cout << BSDF_list.at(i).roughness << "\n";
+			host_list[i] = BSDF_list.at(i);
+			std::cout << host_list[i].roughness << "\n";
+		}
+		
+		// transfer
+		cudaError_t err = cudaMalloc((void**)&scene.bsdf_list, BSDF_list.size() * sizeof(principled_BSDF));
+		if (err != CUDA_SUCCESS) {
+			printf("HUUGIGUUGI");
+			exit(1);
+		}
+		err = cudaMemcpy(scene.bsdf_list, host_list, BSDF_list.size() * sizeof(principled_BSDF), cudaMemcpyHostToDevice);
+		if (err != CUDA_SUCCESS) {
+			printf("HUUGIGUUGI");
+			exit(2);
+		}
+
+		delete[] host_list;
+	}
+	int BSDF_loader::gifm(std::string name) {
+		for (int i = 0; i < BSDF_list.size(); i++) {
+			if (name == BSDF_name.at(i)) return i;
+		}
 	}
 }

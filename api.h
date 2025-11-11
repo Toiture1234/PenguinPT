@@ -6,6 +6,7 @@
 #define BOUNCES_PT 10
 #define BOUNCES_PT_VOL 512
 #define SAFE_OFFSET 0.005f
+#define VOLUME_STACK_SIZE 16
 
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
@@ -15,6 +16,7 @@
 #include <nanovdb/cuda/DeviceBuffer.h>
 #include <nanovdb/tools/GridBuilder.h>
 #include <nanovdb/math/Ray.h>
+#include <nanovdb/math/HDDA.h>
 
 #include <SFML/Graphics.hpp>
 
@@ -52,6 +54,7 @@ typedef curandStatePhilox4_32_10_t Rand_state;
 #include "intersectors.h"
 #include "camera.h"
 #include "renderer_services.h"
+#include "integrators.h"
 #include "pathtracer.h"
 #include "obj_loader.h"
 #include "nanovdb_loader.h"

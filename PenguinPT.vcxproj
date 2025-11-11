@@ -26,6 +26,7 @@
     <ClInclude Include="camera.h" />
     <ClInclude Include="envmap.h" />
     <ClInclude Include="hdr_loader.h" />
+    <ClInclude Include="integrators.h" />
     <ClInclude Include="intersectors.h" />
     <ClInclude Include="Material.h" />
     <ClInclude Include="Microfacet.h" />

@@ -9,6 +9,7 @@ namespace penguinPT {
 		uint8_t* host_pixel_buffer = nullptr;
 		unsigned int frame_index = 0;
 		float delta_time = 1.f;
+		bool is_rendering = false;
 		Rand_state rng_state = Rand_state();
 
 		camera mainCam;

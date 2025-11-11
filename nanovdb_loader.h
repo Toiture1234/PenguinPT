@@ -6,38 +6,52 @@ namespace penguinPT::loader {
 		nanovdb_loader() {}
 		~nanovdb_loader() {}
 
+		// to check if a grid has already been loaded, so to not load multiple times the same object
+		std::vector<std::string> grid_names;
+
 		std::vector<Volume> vol_list;
 		unsigned int volumes_num = 0;
 
 		bool load_nvdb(std::string path);
-		void volume_parameters(unsigned int index, float s_T, nanovdb::Vec3f albedo_, float g_);
+		void volume_parameters(unsigned int index, nanovdb::Vec3f s_T, nanovdb::Vec3f albedo_, float g_);
 		void set_tranforms(unsigned int index, float scale_, nanovdb::Vec3f position_);
 		bool send_to_scene(Scene_data& scene);
 	};
 
+	
 	bool nanovdb_loader::load_nvdb(std::string path) {
 		Volume candidate;
-		try {
-			// create volume
-			auto handle = nanovdb::io::readGrid<nanovdb::CudaDeviceBuffer>("assets/volumes/" + path);
 
-			handle.deviceUpload(); // Copy the NanoVDB grid to the GPU asynchronously
-
-			candidate.density_grid = handle.deviceGrid<float>(); // get a (raw) pointer to a NanoVDB grid of value type float on the GPU
-
-			if (!candidate.density_grid)
-				throw std::runtime_error("GridHandle did not contain a grid with value type float");
+		int i;
+		if (file_util::is_word_in_list(path, grid_names, i)) {
+			std::cout << "COPYED density grid !\n";
+			candidate.density_grid = vol_list.at(i).density_grid;
 		}
-		catch (const std::exception& e) {
-			std::cerr << "An exception occurred: \"" << e.what() << "\"" << std::endl;
-			return false;
+		else {
+			try {
+				// create volume
+				auto handle = nanovdb::io::readGrid<nanovdb::CudaDeviceBuffer>("assets/volumes/" + path);
+
+				handle.deviceUpload(); // Copy the NanoVDB grid to the GPU asynchronously
+
+				candidate.density_grid = handle.deviceGrid<float>(); // get a (raw) pointer to a NanoVDB grid of value type float on the GPU
+
+				if (!candidate.density_grid)
+					throw std::runtime_error("GridHandle did not contain a grid with value type float");
+			}
+			catch (const std::exception& e) {
+				std::cerr << "An exception occurred: \"" << e.what() << "\"" << std::endl;
+				return false;
+			}
 		}
 		volumes_num++;
+		grid_names.push_back(path);
 		vol_list.push_back(candidate);
 		return true;
 	}
 
-	void nanovdb_loader::volume_parameters(unsigned int index, float s_T, nanovdb::Vec3f albedo_, float g_) {
+	void nanovdb_loader::volume_parameters(unsigned int index, nanovdb::Vec3f s_T, nanovdb::Vec3f albedo_, float g_) {
+		if (index >= volumes_num) return;
 		Volume& candidate = vol_list.at(index);
 
 		candidate.sigma_t = s_T;
@@ -45,6 +59,7 @@ namespace penguinPT::loader {
 		candidate.g = g_;
 	}
 	void nanovdb_loader::set_tranforms(unsigned int index, float scale_, nanovdb::Vec3f position_) {
+		if (index >= volumes_num) return;
 		Volume& candidate = vol_list.at(index);
 
 		candidate.scale = scale_;

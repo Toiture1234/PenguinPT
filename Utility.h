@@ -1,6 +1,5 @@
 #pragma once
 
-
 // clamp any scalar
 #define CLAMP(x, v_min, v_max) x > v_min ? x < v_max ? x : v_max : v_min
 
@@ -13,6 +12,20 @@
 #define gotoxy(x, y) printf("%c[%d;%df", 0x1B, y, x);
 
 namespace penguinPT::util {
+	__hostdev__ inline float avg(const nanovdb::Vec3f x) {
+		return 1.f / 3.f * (x[0] + x[1] + x[2]);
+	}
+	__hostdev__ inline nanovdb::Vec3f clamp3(nanovdb::Vec3f x, float v_min, float v_max) {
+		return { CLAMP(x[0], v_min, v_max),CLAMP(x[1], v_min, v_max) ,CLAMP(x[2], v_min, v_max) };
+	}
+	__hostdev__ inline nanovdb::Vec3f aces(const nanovdb::Vec3f& x) {
+		const float a = 2.51;
+		const float b = 0.03;
+		const float c = 2.43;
+		const float d = 0.59;
+		const float e = 0.14;
+		return clamp3((x * (a * x + nanovdb::Vec3f(b))) / (x * (c * x + nanovdb::Vec3f(d)) + nanovdb::Vec3f(e)), 0.0, 1.0);
+	}
 	__hostdev__ inline void Onb(nanovdb::Vec3f N, nanovdb::Vec3f& T, nanovdb::Vec3f& B)
 	{
 		nanovdb::Vec3f up = abs(N[2]) < 0.999 ? nanovdb::Vec3f(0, 0, 1) : nanovdb::Vec3f(1, 0, 0);
@@ -124,26 +137,60 @@ namespace penguinPT::util {
 	{
 		return V[0] * X + V[1] * Y + V[2] * Z;
 	}
-	__device__ inline nanovdb::Vec3f ToLocal(nanovdb::Vec3f X, nanovdb::Vec3f Y, nanovdb::Vec3f Z, nanovdb::Vec3f V)
+	__hostdev__ inline nanovdb::Vec3f ToLocal(nanovdb::Vec3f X, nanovdb::Vec3f Y, nanovdb::Vec3f Z, nanovdb::Vec3f V)
 	{
 		return nanovdb::Vec3f(V.dot(X), V.dot(Y), V.dot(Z));
 	}
+	__hostdev__ inline float luminance(const nanovdb::Vec3f& l) {
+		return l.dot(nanovdb::Vec3f(0.21f, 0.72f, 0.07f));
+	}
+	__hostdev__ inline float SchlickWeight(float u)
+	{
+		float m = CLAMP(1.0f - u, 0.0f, 1.0f);
+		float m2 = m * m;
+		return m2 * m2 * m;
+	}
+	
 }
-namespace penguinPT {
-	// stores data from hit surface to lighten intersection functions
-	class hit_info {
-	public:
-		nanovdb::Vec3f normal;
-		nanovdb::Vec3f trueNormal;
-		float t;
-		float2 uv = make_float2(0.f, 0.f);
-		nanovdb::Vec3u debug;
-		int BSDF_index;
+namespace penguinPT::file_util {
+	bool is_char_in_list(std::vector<char> c_list, char c) {
+		if (c_list.size() == 0) return false;
+		for (int i = 0; i < c_list.size(); i++) {
+			if (c_list.at(i) == c) return true;
+		}
+		return false;
+	}
+	bool is_word_in_list(std::string word, std::vector<std::string> list, int& i) {
+		//for (std::string& l : list) if (word == l) return true;
+		if (list.size() == 0) return false;
+		for(i = 0; i < word.size(); i++) if (word == list.at(i)) return true;
+		return false;
+	}
 
-		// to sample volume density
-		bool insideVolume;
-		int volumeIndex;
+	std::string read_to_escape(std::string line, unsigned int& i, std::vector<char> c_list) {
+		std::string result = "";
 
-		__hostdev__ hit_info() : normal(0.f), t(0.f), debug(0), BSDF_index(0), insideVolume(false), volumeIndex(0), trueNormal(0.f) {}
-	};
+		for (i; i < line.length(); i++) {
+			char c = line[i];
+			if (c == '\n' || is_char_in_list(c_list, c)) return result;
+			else result += c;
+		}
+		return result;
+	}
+	std::vector<std::string> get_line_tokens(std::string line, std::vector<char> c_list) {
+		unsigned int i = 0;
+		std::vector<std::string> tokens;
+
+		while (i < line.length()) {
+			char c = line[i];
+
+			if (is_char_in_list(c_list, c)) i++;
+			else if (c == '\n') break;
+			else {
+				tokens.push_back(read_to_escape(line, i, c_list));
+			}
+		}
+		return tokens;
+	}
+	
 }

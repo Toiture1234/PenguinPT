@@ -61,6 +61,16 @@ namespace penguinPT {
 
         color = dev_acc_buffer[idx] / float(rs.frame_index + 1);
 
+        // post processing
+        color = util::mix(nanovdb::Vec3f(util::luminance(color)), color, rs.mainCam.saturation);
+        color = util::mix(nanovdb::Vec3f(0.5f), color, rs.mainCam.constrast);
+        color = color * rs.mainCam.exposure * rs.mainCam.multiplier;
+
+        float vignette_factor = expf(-sqrtf(uvX_cam * uvX_cam + uvY_cam * uvY_cam) * 2.f);
+        color *= util::mix(1.f, vignette_factor, rs.mainCam.vignette);
+
+        color = util::aces(color);
+
         // writing to buffer
         int R_255 = CLAMP(color[0] * 255, 0, 255);
         int G_255 = CLAMP(color[1] * 255, 0, 255);
@@ -86,56 +96,103 @@ namespace penguinPT {
         dsp_text->update(rs.host_pixel_buffer);
     }
 
+    void save_screenshot(sf::Texture& tex) {
+        std::time_t result = std::time(nullptr);
+
+        char buffer[26];
+        
+        time(&result);
+        ctime_s(buffer, sizeof(buffer), &result);
+
+        std::string name;
+        for (int i = 0; i < strlen(buffer); i++) { // avoid line return character
+            if (buffer[i] == ' ' || buffer[i] == ':') name += '_';
+            else if (buffer[i] == '\n') break;
+            else name += buffer[i];
+        }
+
+        sf::Image saver = tex.copyToImage();
+        saver.saveToFile("saves/screenshots/" + name + ".png");
+        std::cout << "Image saved as" << name << ".png\n";
+    }
     extern "C" void run() 
     {
         renderer_services rs;
         rs.mainCam.speed = 5.f;
         rs.mainCam.zoom = 1.f;
+        //rs.mainCam.multiplier = nanovdb::Vec3f(1.f, 0.9f, 0.8f);
+        //rs.mainCam.vignette = 0.8f;
+        //rs.mainCam.saturation = 0.7f;
+        rs.mainCam.position = { 0.f, -10.f, 0.f };
+
         rs.fill_host_pixel_buffer();
         initCuda(rs);
 
         loader::obj_loader loader01;
         loader::nanovdb_loader loader02;
         loader::envmap_loader loader03;
+        loader::usd_scene_loader loader04;
+        loader::BSDF_loader loader05;
 
-        //loader01.load_obj("horse_statue.obj", { 0.f, 0.05f, 0.f }, 20.f, 1U);
-        //loader01.load_obj("just_a_plane.obj", { 0.f, 0.f, 0.f }, 50.f, 2U);
+        //loader04.load_usd_scene("untitled.usda");
+        loader05.create_new_BSDF("floor", 1.f, nanovdb::Vec3f(0.4f, 0.3f, 0.1f) * 0.1f, nanovdb::Vec3f(0.f), nanovdb::Vec3f(0.f), 0.f, 1.5f, 0.f);
+        //loader05.create_new_BSDF(nanovdb::Vec3f(1.f, 0.1f, 0.1f), 0.05f, &number);
+        loader05.create_new_BSDF("grass", 0.2f, nanovdb::Vec3f(0.4f, 0.7f, 0.3f), nanovdb::Vec3f(0.f), nanovdb::Vec3f(0.f), 0.f, 1.47f, 0.1f);
+        loader05.BSDF_list.at(loader05.gifm("grass")).change_medium = false;
+        
+        loader05.create_new_BSDF("floor_glass", 0.7f, nanovdb::Vec3f(1.f), nanovdb::Vec3f(0.f), nanovdb::Vec3f(1.f), 0.f, 1.47f, 0.5f);
+        loader05.BSDF_list.at(loader05.gifm("floor_glass")).change_medium = false;
+        //loader05.create_new_BSDF(nanovdb::Vec3f(0.1f, 0.1f, 1.f), 0.05f);
+        
+
+        loader01.load_obj("just_a_plane.obj", { 0.f, 0.f, 0.f }, 20.f, loader05.gifm("floor"));
+        loader01.load_obj("grass.obj", { 0.f, 0.05f, 0.f }, 10.f, loader05.gifm("grass"));
+        //loader01.load_obj("horse_statue.obj", { 0.f, 0.05f, 0.f }, 20.f, 3U);
+        //loader01.load_obj("horse_statue.obj", { 5.f, 0.05f, 0.f }, 20.f, 4U);
+        
         loader01.send_to_scene(rs.scene);
         
         rs.scene.build_BVH();
+        
         rs.scene.send_to_gpu_solid();
-       
+
+        loader05.send_to_gpu(rs.scene);
         // load quickly bsdf, TODO : move !!
+        /*
+        principled_BSDF* h_list = new principled_BSDF[3];
+        h_list[0].is_through = true;
 
-        BSDF* h_list = new BSDF[3];
-        h_list[0].bsdf_type = BSDF_through;
-
-        h_list[1].bsdf_type = BSDF_specular;
-        h_list[1].roughness = 0.1f;
-        h_list[1].IOR = 1.5f;
+        //h_list[1].bsdf_type = BSDF_blinn_phong;
+        h_list[1].roughness = 0.0f;
+        h_list[1].ior = 1.5f;
         h_list[1].metalness = 1.f;
-        h_list[1].albedo = nanovdb::Vec3f(0.5f, 0.3f, 0.05f);
+        h_list[1].albedo = nanovdb::Vec3f(1.f);
 
-        h_list[2].bsdf_type = BSDF_blinn_phong;
-        h_list[2].roughness = 0.2f;
-        h_list[2].IOR = 1.5f;
+        //h_list[2].bsdf_type = BSDF_blinn_phong;
+        h_list[2].roughness = 0.3f;
+        h_list[2].ior = 1.5f;
         h_list[2].metalness = 0.f;
-        h_list[2].albedo = nanovdb::Vec3f(0.5f, 0.55f, 0.6f);
+        h_list[2].transparency = 1.f;
+        h_list[2].albedo = nanovdb::Vec3f(0.9f, 0.5f, 0.2f);
         
         // transfer
-        cudaMalloc((void**)&rs.scene.bsdf_list, 3 * sizeof(BSDF));
-        cudaMemcpy(rs.scene.bsdf_list, h_list, 3 * sizeof(BSDF), cudaMemcpyHostToDevice);
+        cudaMalloc((void**)&rs.scene.bsdf_list, 3 * sizeof(principled_BSDF));
+        cudaMemcpy(rs.scene.bsdf_list, h_list, 3 * sizeof(principled_BSDF), cudaMemcpyHostToDevice);
 
         delete[] h_list;
-
+        */
         // ENVMAP
         loader03.load_from_file("assets/hdris/sky_bright.hdr");
         loader03.send_to_gpu(rs.scene.environnement_map, cudaFilterModeLinear);
         rs.scene.environnement_map.strength = 0.5f;
 
-        loader02.load_nvdb("volume.nvdb");
-        loader02.volume_parameters(0, 2.f, nanovdb::Vec3f(1.f), -0.4f);
-        loader02.set_tranforms(0, 0.1f, nanovdb::Vec3f(0.f, 0.f, 5.f));
+        //loader02.load_nvdb("f2.nvdb");
+        //loader02.load_nvdb("volume.nvdb");
+        loader02.volume_parameters(1, nanovdb::Vec3f(0.1f), nanovdb::Vec3f(0.7f, 0.3f, 0.3f), -0.4f);
+        loader02.set_tranforms(1, 0.1f, nanovdb::Vec3f(0.f, 0.f, 0.f));
+       
+        loader02.volume_parameters(0, nanovdb::Vec3f(3.f), nanovdb::Vec3f(1.f), -0.4f);
+        loader02.set_tranforms(0, 3.f, nanovdb::Vec3f(0.f, 0.f, 0.f));
 
         loader02.send_to_scene(rs.scene);
         rs.scene.send_to_gpu_volumes();
@@ -158,6 +215,9 @@ namespace penguinPT {
             }
 
             rs.mainCam.move(&window, rs.delta_time, &rs.frame_index);
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::M)) {
+                save_screenshot(displayTex);
+            }
 
             renderFrame(rs, &displayTex);
             
@@ -166,8 +226,8 @@ namespace penguinPT {
             window.display();
 
             rs.delta_time = mainClock.restart().asSeconds();
-            gotoxy(1, 6);
-            printf("FPS : %f\n", 1.f / rs.delta_time);
+            //gotoxy(1, 6);
+            //printf("FPS : %f\n", 1.f / rs.delta_time);
             rs.frame_index++;
         }
 

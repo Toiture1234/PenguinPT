@@ -15,6 +15,8 @@ __hostdev__ float penguinPT::phase_function::Henyey_greenstein::eval(const float
 	return pdf;
 }
 __device__ nanovdb::Vec3f penguinPT::phase_function::Henyey_greenstein::sample(const nanovdb::Vec3f& w0, nanovdb::Vec3f& wi, const float& g, float& pdf, Rand_state& rng_state) {
+	if (g == 0) return util::generateUniformSample(rng_state);
+	
 	float xi = randC(&rng_state);
 	float t = (1.f - g * g) / (1.f - g + 2.0f * g * xi);
 	float mu = (0.5f / g) * ((1.f + g * g) - t * t);

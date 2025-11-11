@@ -9,6 +9,14 @@ namespace penguinPT {
 		float zoom = 1.0f; // TODO : replace with proper fov
         float speed = 1.0f;
 
+        // params
+        float exposure = 1.0f;
+        float constrast = 1.0f;
+        float saturation = 1.0f;
+        nanovdb::Vec3f multiplier = nanovdb::Vec3f(1.f);
+
+        float vignette = 0.f;
+
 		__hostdev__ camera() {}
         __hostdev__ ~camera() {}
 

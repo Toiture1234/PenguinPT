@@ -27,9 +27,10 @@ namespace penguinPT {
 				break;
 			}
 
-			BSDF& surface_bsdf = rs.scene.bsdf_list[info.BSDF_index];
+			principled_BSDF& surface_bsdf = rs.scene.bsdf_list[info.BSDF_index];
 			nanovdb::Vec3f L_dir;
-			nanovdb::Vec3f bsdf_value = surface_bsdf.sample(ray, info.normal, L_dir, rs.rng_state, scatterPDF, isInside, through);
+			//nanovdb::Vec3f bsdf_value = surface_bsdf.sample(ray, info.normal, L_dir, rs.rng_state, scatterPDF, isInside, through);
+			nanovdb::Vec3f bsdf_value = surface_bsdf.sample_CUDA(-ray.dir(), L_dir, info.normal, scatterPDF, rs.rng_state, through, isInside);
 			L += surface_bsdf.emission * throughput;
 			
 			ray.reset(ray(info.t), L_dir);
@@ -56,6 +57,8 @@ namespace penguinPT {
 		bool isInside = false;
 		
 		nanovdb::Vec3f attenuation = nanovdb::Vec3f(0.f);
+		float scattering_sss = 0.f;
+		float sss_g = 0.f;
 
 		for (unsigned int i = 0; i < BOUNCES_PT_VOL; i++) {
 			hit_info info;
@@ -68,45 +71,66 @@ namespace penguinPT {
 			info.normal = util::refIfNeg(info.normal, -ray.dir());
 			
 			if (!hit) {
-				//L += ray.dir().dot(nanovdb::Vec3f(1.f).normalize()) > 0.95f ? nanovdb::Vec3f(1.f) * throughput * 15.f : nanovdb::Vec3f(0.f);
+				nanovdb::Vec3f skyBlue = util::mix(nanovdb::Vec3f(0.4f, 0.7f, 1.f), nanovdb::Vec3f(0.9f, 0.95f, 1.f), expf(-5.f * fabsf(ray.dir()[1]))) * 0.15f;
+				L += ((ray.dir().dot(nanovdb::Vec3f(1.f, 1.f, 0.f).normalize()) > 0.95f ? nanovdb::Vec3f(1.f) * 8.f : nanovdb::Vec3f(0.f)) + skyBlue) * throughput;
 				//L += nanovdb::Vec3f(ray.dir()[1] * 0.5f + 0.5f) * throughput;
 				//L += fmaxf(sinf(ray.dir()[0] * 5.f) * sinf(ray.dir()[2] * 5.f), 0.f) * throughput;
 				//L += util::mix(0.5f, 1.f, ray.dir()[1] * 0.5f + 0.5f) * nanovdb::Vec3f(0.8f, 0.9f, 1.f) * throughput * 0.3f;
 				float pdf_e;
-				L += rs.scene.environnement_map.eval_envmap(ray.dir(), pdf_e) * throughput;
+				//L += rs.scene.environnement_map.eval_envmap(ray.dir(), pdf_e) * throughput;
+				//L += ((ray.dir()[1] > 0.90f ? 16.f : 0.f) +) * throughput;
+				//L += nanovdb::Vec3f(0.5f) * throughput;
 				break;
 			}
 
-			// check for volume intersection
 			nanovdb::Vec3f bsdf_value;
-			bool interact_volume = false;
-			Volume& this_volume = rs.scene.volumes[info.volumeIndex];
-			if (info.insideVolume) {
-				interact_volume = this_volume.delta_tracking(ray, info.t, rs.rng_state);
+			float t_max = info.t;
+			
+			// volume integration
+			nanovdb::Vec3f volume_w;
+			nanovdb::math::Ray<float> volume_ray = ray;
+			nanovdb::Vec3f volume_bsdf_value;
+			float volume_scatterPDF;
+			bool volume_scatter = integrators::heterogeneous_volumes_integrator::integrate(rs, volume_ray, t_max, volume_bsdf_value, volume_scatterPDF, info.all_volumes, info.nb_vol, volume_w);
+
+			// SSS integration
+			bool sss_scatter = false;
+			if (isInside) {
+				float t_SSS = -logf(randC(&rs.rng_state)) / scattering_sss;
+				if (t_SSS < t_max) {
+					sss_scatter = true, t_max = t_SSS;
+
+					nanovdb::Vec3f wi;
+					bsdf_value = phase_function::Henyey_greenstein::sample(ray.dir(), wi, sss_g, scatterPDF, rs.rng_state);
+
+					ray.reset(ray(t_max), wi);
+				}
+				//  absorption
+				throughput = throughput * util::exp3f(-t_max * attenuation);
 			}
 
-			if (interact_volume) {
-				nanovdb::Vec3f wi;
-				nanovdb::Vec3f phase_L = phase_function::Henyey_greenstein::sample(ray.dir(), wi, this_volume.g, scatterPDF, rs.rng_state);
-				
-				bsdf_value = phase_L * this_volume.albedo;
-
-				ray.reset(ray(info.t), wi);
+			if (!sss_scatter && volume_scatter) {
+				ray = volume_ray;
+				throughput = throughput * volume_w;
+				bsdf_value = volume_bsdf_value;
+				scatterPDF = volume_scatterPDF;
 			}
-			else {
+			else if (!sss_scatter && !volume_scatter)
+			{
 				// account for attenuation
 				if (isInside) throughput = throughput * util::exp3f(-info.t * attenuation);
 
-				BSDF& surface_bsdf = rs.scene.bsdf_list[info.BSDF_index];
+				principled_BSDF& surface_bsdf = rs.scene.bsdf_list[info.BSDF_index];
 				
 				nanovdb::Vec3f L_dir;
-				bsdf_value = surface_bsdf.sample(ray, info.normal, L_dir, rs.rng_state, scatterPDF, isInside, through);
+				//bsdf_value = surface_bsdf.sample(ray, info.normal, L_dir, rs.rng_state, scatterPDF, isInside, through);
+				bsdf_value = surface_bsdf.sample_CUDA(-ray.dir(), L_dir, info.normal, scatterPDF, rs.rng_state, through, isInside);
 				L += surface_bsdf.emission * throughput;
 
 				ray.reset(ray(info.t), L_dir);
-				safe_both(info.normal, ray, through);
+				//safe_both(info.normal, ray, through);
 
-				if (through) attenuation = surface_bsdf.attenuation;
+				if (through) attenuation = surface_bsdf.absorption, scattering_sss = surface_bsdf.scattering, sss_g = surface_bsdf.g;
 			}
 
 			if (scatterPDF > 0.0001f) throughput = throughput * bsdf_value / scatterPDF;
