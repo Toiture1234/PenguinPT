@@ -1,0 +1,10 @@
+def Xform "root" {
+    def Xform "A" {
+        {}
+    }
+    def Xform "B" {
+        def Xform "C" {
+
+        }
+    }
+}

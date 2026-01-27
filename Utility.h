@@ -161,7 +161,6 @@ namespace penguinPT::file_util {
 		return false;
 	}
 	bool is_word_in_list(std::string word, std::vector<std::string> list, int& i) {
-		//for (std::string& l : list) if (word == l) return true;
 		if (list.size() == 0) return false;
 		for(i = 0; i < word.size(); i++) if (word == list.at(i)) return true;
 		return false;

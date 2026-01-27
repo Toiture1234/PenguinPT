@@ -7,6 +7,7 @@ namespace penguinPT::loader {
 		~obj_loader() {}
 
 		std::vector<Triangle> triangle_list;
+		std::vector<Triangle_data> tr_data_list;
 		std::vector<nanovdb::Vec3f> vertices_list;
 		std::vector<nanovdb::Vec3f> normal_list;
 		std::vector<float2> uv_list;
@@ -73,13 +74,21 @@ namespace penguinPT::loader {
 						uvC = std::stoi(tokens.at(8)) - 1 + uv_start;
 
 						Triangle tr(vertices_list.at(verticeA), vertices_list.at(verticeB), vertices_list.at(verticeC));
+						Triangle_data tr_dat;
+						tr_dat.nA = normal_list.at(normalA);
+						tr_dat.nB = normal_list.at(normalB);
+						tr_dat.nC = normal_list.at(normalC);
+#if MODE_TRIANGLE == 0
 						tr.nA = normal_list.at(normalA);
 						tr.nB = normal_list.at(normalB);
 						tr.nC = normal_list.at(normalC);
 
 						tr.BSDF_index = BSDF_id;
+#endif
+						tr_dat.BSDF_index = BSDF_id;
 
 						triangle_list.push_back(tr);
+						tr_data_list.push_back(tr_dat);
 					}
 					else if (normals) { // normals but not uvs
 						//std::cout << "normals but not uvs\n";
@@ -93,13 +102,21 @@ namespace penguinPT::loader {
 						normalC = std::stoi(tokens.at(6)) - 1 + normal_start;
 
 						Triangle tr(vertices_list.at(verticeA), vertices_list.at(verticeB), vertices_list.at(verticeC));
+						Triangle_data tr_dat;
+						tr_dat.nA = normal_list.at(normalA);
+						tr_dat.nB = normal_list.at(normalB);
+						tr_dat.nC = normal_list.at(normalC);
+#if MODE_TRIANGLE == 0
 						tr.nA = normal_list.at(normalA);
 						tr.nB = normal_list.at(normalB);
 						tr.nC = normal_list.at(normalC);
 
 						tr.BSDF_index = BSDF_id;
+#endif
+						tr_dat.BSDF_index = BSDF_id;
 
 						triangle_list.push_back(tr);
+						tr_data_list.push_back(tr_dat);
 					}
 					else if (uvs) { // uvs but not normals
 						//std::cout << "uvs but not normals\n";
@@ -113,8 +130,15 @@ namespace penguinPT::loader {
 						uvC = std::stoi(tokens.at(6)) - 1 + uv_start;
 
 						Triangle tr(vertices_list.at(verticeA), vertices_list.at(verticeB), vertices_list.at(verticeC));
+						Triangle_data tr_dat;
+
+						tr_dat.BSDF_index = BSDF_id;
+#if MODE_TRIANGLE == 0
 						tr.BSDF_index = BSDF_id;
+#endif
+						
 						triangle_list.push_back(tr);
+						tr_data_list.push_back(tr_dat);
 					}
 					else { // only points, do nothing special
 						//std::cout << "only points\n";
@@ -124,14 +148,22 @@ namespace penguinPT::loader {
 						verticeC = std::stoi(tokens.at(3)) - 1 + vertex_start;
 
 						Triangle tr(vertices_list.at(verticeA), vertices_list.at(verticeB), vertices_list.at(verticeC));
+						Triangle_data tr_dat;
+
+						tr_dat.BSDF_index = BSDF_id;
+#if MODE_TRIANGLE == 0
 						tr.BSDF_index = BSDF_id;
+#endif
+
 						triangle_list.push_back(tr);
+						tr_data_list.push_back(tr_dat);
 					}
 					
 					triangles_num++;
 				}
 			}
 			
+			file.close();
 			return true;
 		}
 		else {
@@ -146,10 +178,12 @@ namespace penguinPT::loader {
 		scene = Scene_data(triangle_list.size());
 		for (int i = 0; i < triangle_list.size(); i++) {
 			scene.triangles[i] = triangle_list.at(i);
+			scene.tr_data[i] = tr_data_list.at(i);
 			scene.triangle_indicies[i] = i;
 		}
 
 		triangle_list.clear();
+		tr_data_list.clear();
 		vertices_list.clear();
 		normal_list.clear();
 		uv_list.clear();
@@ -178,7 +212,8 @@ namespace penguinPT::loader {
 			float ior,
 			float transparency);
 		void create_new_BSDF(std::string name, nanovdb::Vec3f albedo, float roughness);
-		void send_to_gpu(Scene_data& scene);
+		void send_to_gpu(Scene_data& scene, bool use_gpu);
+		void send_to_scene(Scene_data& scene);
 
 		int gifm(std::string name);
 	};
@@ -213,31 +248,42 @@ namespace penguinPT::loader {
 		BSDF_list.push_back(current);
 		BSDF_name.push_back(name);
 	}
-	void BSDF_loader::send_to_gpu(Scene_data& scene) {
+	void BSDF_loader::send_to_scene(Scene_data& scene) {
+		scene.bsdf_list = (principled_BSDF*)malloc(BSDF_list.size() * sizeof(principled_BSDF));
+		scene.num_of_bsdf = BSDF_list.size();
+		for (int i = 0; i < BSDF_list.size(); i++) {
+			scene.bsdf_list[i] = BSDF_list.at(i);
+		}
+	}
+	void BSDF_loader::send_to_gpu(Scene_data& scene, bool use_gpu) {
 		principled_BSDF* host_list = new principled_BSDF[BSDF_list.size()];
 		for (int i = 0; i < BSDF_list.size(); i++) {
-			std::cout << BSDF_list.at(i).roughness << "\n";
 			host_list[i] = BSDF_list.at(i);
-			std::cout << host_list[i].roughness << "\n";
 		}
 		
-		// transfer
-		cudaError_t err = cudaMalloc((void**)&scene.bsdf_list, BSDF_list.size() * sizeof(principled_BSDF));
-		if (err != CUDA_SUCCESS) {
-			printf("HUUGIGUUGI");
-			exit(1);
-		}
-		err = cudaMemcpy(scene.bsdf_list, host_list, BSDF_list.size() * sizeof(principled_BSDF), cudaMemcpyHostToDevice);
-		if (err != CUDA_SUCCESS) {
-			printf("HUUGIGUUGI");
-			exit(2);
-		}
+		if (use_gpu) {
+			// transfer
+			cudaError_t err = cudaMalloc((void**)&scene.bsdf_list, BSDF_list.size() * sizeof(principled_BSDF));
+			if (err != CUDA_SUCCESS) {
+				printf("HUUGIGUUGI");
+				exit(1);
+			}
+			err = cudaMemcpy(scene.bsdf_list, host_list, BSDF_list.size() * sizeof(principled_BSDF), cudaMemcpyHostToDevice);
+			if (err != CUDA_SUCCESS) {
+				printf("HUUGIGUUGI");
+				exit(2);
+			}
 
-		delete[] host_list;
+			delete[] host_list;
+		}
+		else {
+			scene.bsdf_list = host_list;
+		}
 	}
 	int BSDF_loader::gifm(std::string name) {
 		for (int i = 0; i < BSDF_list.size(); i++) {
 			if (name == BSDF_name.at(i)) return i;
 		}
+		return 0;
 	}
 }

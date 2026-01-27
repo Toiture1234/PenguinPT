@@ -8,6 +8,7 @@ namespace penguinPT {
 		nanovdb::FloatGrid* density_grid; // density grid, on device side if cuda else on host
 		nanovdb::Vec3f sigma_t;
 		nanovdb::Vec3f albedo;
+		nanovdb::Vec3f emission;
 		
 		// phase function
 		float g;
@@ -16,7 +17,7 @@ namespace penguinPT {
 		float scale = 1.f;
 		nanovdb::Vec3f position = { 0.f, 0.f, 0.f };
 
-		__hostdev__ Volume() : density_grid(nullptr), sigma_t(0.f), albedo(0.f), g(0.f) {}
+		__hostdev__ Volume() : density_grid(nullptr), sigma_t(0.f), albedo(0.f), g(0.f), emission(0.f) {}
 
 		__hostdev__ bool intersect_volume_replace(nanovdb::math::Ray<float> ray, float& t_out, nanovdb::Vec3f& normal, Volume** all_volumes, int& nb_vol) {
 			ray.setEye((ray.eye() - position) / scale);
@@ -30,7 +31,7 @@ namespace penguinPT {
 				nb_vol++;
 			}
 			float t = (inside ? t1 : t0) * scale;
-			if (t > t_out) return false;
+			if (t > t_out || t < 0.001f) return false;
 			t_out = t;
 			normal = -ray.dir();
 			

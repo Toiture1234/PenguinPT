@@ -65,4 +65,7 @@ void penguinPT::camera::move(sf::RenderWindow* window, float delta_t, unsigned i
         *frame_index = 0;
        
     } 
+
+    // camera position 
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::P)) std::cout << position[0] << " " << position[1] << " " << position[2] << "\n";
 }

@@ -27,6 +27,7 @@
 #include <random>
 #include <fstream>
 #include <filesystem>
+#include <exception>
 
 typedef curandStatePhilox4_32_10_t Rand_state;
 #define randC(state) curand_uniform(state)
