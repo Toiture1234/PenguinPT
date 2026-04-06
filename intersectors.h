@@ -1,7 +1,7 @@
 #pragma once
 
-#define BASE_BSDF 1
-#define BSDF_TROUGH_ID 0
+#define BASE_BSDF 1 // pure black BSDF
+#define BSDF_TROUGH_ID 0 // for volumes
 
 #define MODE_TRIANGLE 1
 

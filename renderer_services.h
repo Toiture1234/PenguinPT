@@ -80,6 +80,10 @@ namespace penguinPT {
 				if (scene.num_of_triangles != 0) CUDA_CHECK(cudaFree(scene.triangles), free(scene.triangle_indicies));
 				if (scene.nodes_used != 0) CUDA_CHECK(cudaFree(scene.nodes));
 				if (scene.num_of_volumes != 0) CUDA_CHECK(cudaFree(scene.volumes));
+
+				// free envmap
+				CUDA_CHECK(cudaDestroyTextureObject(scene.environnement_map.image));
+				CUDA_CHECK(cudaDestroyTextureObject(scene.environnement_map.cdf));
 			}
 			else {
 				if (scene.num_of_bsdf != 0) free(scene.bsdf_list);

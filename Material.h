@@ -25,7 +25,7 @@ namespace penguinPT {
 		bool is_through;
 		bool change_medium;
 
-		__hostdev__ principled_BSDF() : roughness(0.f), anisotropy(0.), metalness(0.), ior(1.f), g(0.f), opacity(0.f), albedo(0.f), emission(0.f), absorption(0.f), is_through(false), transparency(0.f), scattering(0.f), change_medium(true) {}
+		__hostdev__ principled_BSDF() : roughness(0.f), anisotropy(0.), metalness(0.), ior(1.5f), g(0.f), opacity(0.f), albedo(0.f), emission(0.f), absorption(0.f), is_through(false), transparency(0.f), scattering(0.f), change_medium(true) {}
 		__hostdev__ ~principled_BSDF() {}
 
 		__hostdev__ nanovdb::Vec3f eval(nanovdb::Vec3f wo, nanovdb::Vec3f wi, nanovdb::Vec3f N, float& pdf, float eta) const;
@@ -78,7 +78,7 @@ namespace penguinPT {
 	__hostdev__ nanovdb::Vec3f principled_BSDF::eval(nanovdb::Vec3f wo, nanovdb::Vec3f wi, nanovdb::Vec3f N, float& pdf, float eta) const {
 		if (is_through) {
 			float k = wo.dot(wi);
-			pdf = k == 1.f ? 1.f : 0.f;
+			//pdf = k == 1.f ? 1.f : 0.f;
 			return nanovdb::Vec3f(pdf);
 		}
 
@@ -177,9 +177,9 @@ namespace penguinPT {
 	__device__ nanovdb::Vec3f principled_BSDF::sample_CUDA(nanovdb::Vec3f wo, nanovdb::Vec3f& wi, nanovdb::Vec3f N, float& pdf, Rand_state& rng_state, bool& through, bool& isInside) const {
 		if (is_through) {
 			wi = -wo;
-			pdf = 1.f;
+			//pdf = 1.f;
 			through = true;
-			return nanovdb::Vec3f(1.f);
+			return nanovdb::Vec3f(pdf);
 		}
 		through = false;
 
@@ -268,9 +268,9 @@ namespace penguinPT {
 	__host__ nanovdb::Vec3f principled_BSDF::sample_HOST(nanovdb::Vec3f wo, nanovdb::Vec3f& wi, nanovdb::Vec3f N, float& pdf, Rand_state& rng_state, bool& through, bool& isInside) const {
 		if (is_through) {
 			wi = -wo;
-			pdf = 1.f;
+			//pdf = 1.f;
 			through = true;
-			return nanovdb::Vec3f(1.f);
+			return nanovdb::Vec3f(pdf);
 		}
 		through = false;
 

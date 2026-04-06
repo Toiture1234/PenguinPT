@@ -14,7 +14,7 @@ namespace penguinPT::loader {
 		unsigned int volumes_num = 0;
 
 		bool load_nvdb(std::string path, bool use_gpu);
-		void volume_parameters(unsigned int index, nanovdb::Vec3f s_T, nanovdb::Vec3f albedo_, float g_, nanovdb::Vec3f emission_);
+		void volume_parameters(unsigned int index, nanovdb::Vec3f s_T, nanovdb::Vec3f albedo_, float g_, nanovdb::Vec3f emission_, float dM = 1.f);
 		void set_tranforms(unsigned int index, float scale_, nanovdb::Vec3f position_);
 		bool send_to_scene(Scene_data& scene);
 		void clean();
@@ -28,10 +28,9 @@ namespace penguinPT::loader {
 	bool nanovdb_loader::load_nvdb(std::string path, bool use_gpu) {
 		Volume candidate;
 
-		std::cout << "GPU : " << use_gpu << "\n";
 		int i;
 		if (file_util::is_word_in_list(path, grid_names, i)) {
-			std::cout << "COPYED density grid !\n";
+			std::cout << "Same volume data already in memory.\n";
 			candidate.density_grid = vol_list.at(i).density_grid;
 		}
 		else {
@@ -39,9 +38,9 @@ namespace penguinPT::loader {
 				// create volume
 				if (use_gpu) {
 					auto handle = nanovdb::io::readGrid<nanovdb::CudaDeviceBuffer>("assets/volumes/" + path);
-
+					
 					handle.deviceUpload(); // Copy the NanoVDB grid to the GPU asynchronously
-
+					
 					candidate.density_grid = handle.deviceGrid<float>(); // get a (raw) pointer to a NanoVDB grid of value type float on the GPU
 				}
 				else {
@@ -53,7 +52,7 @@ namespace penguinPT::loader {
 					throw std::runtime_error("GridHandle did not contain a grid with value type float");
 			}
 			catch (const std::exception& e) {
-				std::cerr << "An exception occurred: \"" << e.what() << "\"" << std::endl;
+				std::cerr << "An exception occurred : \"" << e.what() << "\"" << std::endl;
 				return false;
 			}
 		}
@@ -63,7 +62,7 @@ namespace penguinPT::loader {
 		return true;
 	}
 
-	void nanovdb_loader::volume_parameters(unsigned int index, nanovdb::Vec3f s_T, nanovdb::Vec3f albedo_, float g_, nanovdb::Vec3f emission_) {
+	void nanovdb_loader::volume_parameters(unsigned int index, nanovdb::Vec3f s_T, nanovdb::Vec3f albedo_, float g_, nanovdb::Vec3f emission_, float dM) {
 		if (index >= volumes_num) return;
 		Volume& candidate = vol_list.at(index);
 
@@ -71,6 +70,7 @@ namespace penguinPT::loader {
 		candidate.albedo = albedo_;
 		candidate.g = g_;
 		candidate.emission = emission_;
+		candidate.density_mult = dM;
 	}
 	void nanovdb_loader::set_tranforms(unsigned int index, float scale_, nanovdb::Vec3f position_) {
 		if (index >= volumes_num) return;

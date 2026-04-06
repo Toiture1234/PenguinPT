@@ -8,7 +8,8 @@ namespace penguinPT {
 		nanovdb::FloatGrid* density_grid; // density grid, on device side if cuda else on host
 		nanovdb::Vec3f sigma_t;
 		nanovdb::Vec3f albedo;
-		nanovdb::Vec3f emission;
+		nanovdb::Vec3f emission; // should be replaced by a temperature grid but this would be so fucking hard bro
+		float density_mult;
 		
 		// phase function
 		float g;
@@ -17,7 +18,7 @@ namespace penguinPT {
 		float scale = 1.f;
 		nanovdb::Vec3f position = { 0.f, 0.f, 0.f };
 
-		__hostdev__ Volume() : density_grid(nullptr), sigma_t(0.f), albedo(0.f), g(0.f), emission(0.f) {}
+		__hostdev__ Volume() : density_grid(nullptr), sigma_t(0.f), albedo(0.f), g(0.f), emission(0.f), density_mult(1.f) {}
 
 		__hostdev__ bool intersect_volume_replace(nanovdb::math::Ray<float> ray, float& t_out, nanovdb::Vec3f& normal, Volume** all_volumes, int& nb_vol) {
 			ray.setEye((ray.eye() - position) / scale);
@@ -43,7 +44,7 @@ namespace penguinPT {
 			pos /= scale;
 			nanovdb::Vec3f Ipos = density_grid->worldToIndexF(pos);
 			Ipos += offset;
-			return fminf(acc.getValue(nanovdb::Coord(Ipos[0], Ipos[1], Ipos[2])), 1.f);
+			return fminf(acc.getValue(nanovdb::Coord(Ipos[0], Ipos[1], Ipos[2])) * density_mult, 1.f);
 		}
 
 		__device__ bool delta_tracking(nanovdb::math::Ray<float> ray, float& t_out, Rand_state& state);

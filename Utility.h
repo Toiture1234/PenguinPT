@@ -8,10 +8,23 @@
 #define MIN_3(a, b) {a[0] < b[0] ? a[0] : b[0], a[1] < b[1] ? a[1] : b[1], a[2] < b[2] ? a[2] : b[2]}
 #define SIGN(x) (x > 0.f ? 1.f : x < 0.f ? -1.f : 0.f )
 
+
 // WARNING : THIS STARTS AT 1 FOR COORDS
 #define gotoxy(x, y) printf("%c[%d;%df", 0x1B, y, x);
 
 namespace penguinPT::util {
+	__hostdev__ inline float clamp(float a, float x, float y) {
+		return a < x ? x : a > y ? y : a;
+	}
+	__hostdev__ inline nanovdb::Vec3f clamp(const nanovdb::Vec3f& a, const nanovdb::Vec3f& l, const nanovdb::Vec3f& h) {
+		return { clamp(a[0], l[0], h[0]), clamp(a[1], l[1], h[1]), clamp(a[2], l[2], h[3]) };
+	}
+	__hostdev__ inline nanovdb::Vec3f log2_3(nanovdb::Vec3f x) {
+		return { log2f(x[0]), log2f(x[1]), log2f(x[2]) };
+	}
+	__hostdev__ inline nanovdb::Vec3f pow3f(nanovdb::Vec3f x, float power) {
+		return { powf(x[0], power), powf(x[1], power), powf(x[2], power) };
+	}
 	__hostdev__ inline float avg(const nanovdb::Vec3f x) {
 		return 1.f / 3.f * (x[0] + x[1] + x[2]);
 	}
@@ -150,7 +163,10 @@ namespace penguinPT::util {
 		float m2 = m * m;
 		return m2 * m2 * m;
 	}
-	
+	__hostdev__ inline float powerHeuristic(float a, float b) {
+		float t = a * a;
+		return t / (b * b + t);
+	}
 }
 namespace penguinPT::file_util {
 	bool is_char_in_list(std::vector<char> c_list, char c) {
@@ -162,7 +178,7 @@ namespace penguinPT::file_util {
 	}
 	bool is_word_in_list(std::string word, std::vector<std::string> list, int& i) {
 		if (list.size() == 0) return false;
-		for(i = 0; i < word.size(); i++) if (word == list.at(i)) return true;
+		for (i = 0; i < list.size(); i++) if (word == list.at(i)) { return true; }
 		return false;
 	}
 

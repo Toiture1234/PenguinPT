@@ -193,10 +193,9 @@ namespace penguinPT::loader {
 	public:
 		
 		BSDF_loader() {
-			principled_BSDF zero;
-			zero.is_through = true;
-			BSDF_list.push_back(zero);
-			BSDF_name.push_back("zero");
+			principled_BSDF zero; zero.is_through = true; BSDF_list.push_back(zero); BSDF_name.push_back("zero");
+
+			principled_BSDF base_BSDF; BSDF_list.push_back(base_BSDF); BSDF_name.push_back("base_BSDF");
 		}
 		~BSDF_loader() {}
 
@@ -215,7 +214,7 @@ namespace penguinPT::loader {
 		void send_to_gpu(Scene_data& scene, bool use_gpu);
 		void send_to_scene(Scene_data& scene);
 
-		int gifm(std::string name);
+		int gifn(std::string name);
 	};
 
 	void BSDF_loader::create_new_BSDF(std::string name, 
@@ -251,8 +250,10 @@ namespace penguinPT::loader {
 	void BSDF_loader::send_to_scene(Scene_data& scene) {
 		scene.bsdf_list = (principled_BSDF*)malloc(BSDF_list.size() * sizeof(principled_BSDF));
 		scene.num_of_bsdf = BSDF_list.size();
+		std::cout << "BSDF list : \n";
 		for (int i = 0; i < BSDF_list.size(); i++) {
 			scene.bsdf_list[i] = BSDF_list.at(i);
+			std::cout << " - " << BSDF_name.at(i) << "\n";
 		}
 	}
 	void BSDF_loader::send_to_gpu(Scene_data& scene, bool use_gpu) {
@@ -265,13 +266,11 @@ namespace penguinPT::loader {
 			// transfer
 			cudaError_t err = cudaMalloc((void**)&scene.bsdf_list, BSDF_list.size() * sizeof(principled_BSDF));
 			if (err != CUDA_SUCCESS) {
-				printf("HUUGIGUUGI");
-				exit(1);
+				std::cout << "Failed CUDA memory allocation for BSDF.\n";
 			}
 			err = cudaMemcpy(scene.bsdf_list, host_list, BSDF_list.size() * sizeof(principled_BSDF), cudaMemcpyHostToDevice);
 			if (err != CUDA_SUCCESS) {
-				printf("HUUGIGUUGI");
-				exit(2);
+				std::cout << "Failed CUDA memory transfert for BSDF.\n";
 			}
 
 			delete[] host_list;
@@ -280,10 +279,10 @@ namespace penguinPT::loader {
 			scene.bsdf_list = host_list;
 		}
 	}
-	int BSDF_loader::gifm(std::string name) {
+	int BSDF_loader::gifn(std::string name) {
 		for (int i = 0; i < BSDF_list.size(); i++) {
 			if (name == BSDF_name.at(i)) return i;
 		}
-		return 0;
+		return BASE_BSDF;
 	}
 }

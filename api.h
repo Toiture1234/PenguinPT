@@ -1,3 +1,21 @@
+/*
+ * Copyright © 2026 Toiture1234
+ *
+ * Permission is hereby granted, free of charge, 
+ * to any person obtaining a copy of this software and associated documentation files (the “Software”), 
+ * to deal in the Software without restriction, including without limitation the rights to use, 
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, 
+ * and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. 
+ * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, 
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
+
 #pragma once
 
 // options
@@ -12,6 +30,7 @@
 #include "device_launch_parameters.h"
 #include <curand_kernel.h>
 
+// nano VDB
 #include <nanovdb/io/IO.h>
 #include <nanovdb/cuda/DeviceBuffer.h>
 #include <nanovdb/tools/GridBuilder.h>
@@ -20,6 +39,9 @@
 
 #include <SFML/Graphics.hpp>
 
+// openVDB
+
+// main libraries
 #include <stdio.h>
 #include <iostream>
 #include <vector>
@@ -33,6 +55,7 @@ typedef curandStatePhilox4_32_10_t Rand_state;
 #define randC(state) curand_uniform(state)
 #define rand01 ((float)rand() / (float)RAND_MAX)
 
+// NEED TO MOVE THIS TO UTILITY
 #define CUDA_CHECK(expr) if(expr != CUDA_SUCCESS) { printf("CUDA ERROR AT LINE %i IN %s : %s \n", __LINE__, __FILE__, cudaGetErrorString(expr)); exit(99); }
 
 #define __hostdev__ __device__ __host__
@@ -55,6 +78,7 @@ typedef curandStatePhilox4_32_10_t Rand_state;
 #include "intersectors.h"
 #include "camera.h"
 #include "renderer_services.h"
+// #include "direct_lightning.h" <-- to create
 #include "integrators.h"
 #include "pathtracer.h"
 #include "obj_loader.h"

@@ -56,7 +56,6 @@ namespace penguinPT::integrators {
 		return false;
 	}
 
-	// NEED REFACTORING
 	__device__ bool heterogeneous_volumes_integrator::integrate_spectral_device(renderer_services& rs, nanovdb::Ray<float>& ray, float& t_out, nanovdb::Vec3f& BSDF_value, float& scatter_pdf, Volume** volumes, int nb_vol, nanovdb::Vec3f& throughput, int channel, nanovdb::Vec3f& Le) {
 		// t_out is considered as t_max
 		float cdf[VOLUME_STACK_SIZE];

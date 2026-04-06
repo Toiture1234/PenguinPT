@@ -3,31 +3,45 @@
 namespace penguinPT {
 	class Envmap {
 	public:
-		__hostdev__ Envmap() : width(0), height(0), strength(1.f) {}
+		__hostdev__ Envmap() : width(0), height(0), strength(1.f), sum(0.f) {}
 		__hostdev__ ~Envmap() {}
 
 		cudaTextureObject_t image = 0;
-		
+		cudaTextureObject_t cdf = 0;
 
 		unsigned int width, height;
 		float strength;
 
+		float sum;
+
 		__device__ nanovdb::Vec3f eval_envmap(nanovdb::Vec3f wi, float& pdf);
+		__device__ nanovdb::Vec3f sample_envmap(nanovdb::Vec3f& L, float& pdf, Rand_state& state);
+		__device__ float2 binarySearch(float xi);
 	};
 
 	namespace loader {
 		class envmap_loader {
 		public:
 			float* data;
+			float* cdf;
 			unsigned int width, height;
+			float sum;
 
-			__hostdev__ envmap_loader() : data(nullptr), width(0), height(0) {}
+			__hostdev__ envmap_loader() : data(nullptr), width(0), height(0), sum(0.f), cdf(nullptr) {}
 			__hostdev__ ~envmap_loader() {
 				free(data);
+				free(cdf);
 			}
 
 			bool load_from_file(std::string path);
-			bool send_to_gpu(Envmap& source, cudaTextureFilterMode filter) const;
+			bool send_to_gpu(Envmap& source, cudaTextureFilterMode filter);
+			void build_CDF();
+
+			// keep arrays in hand to delete them later
+			cudaArray_t data_cuda = 0;
+			cudaArray_t data_cuda_cdf = 0;
+
+			void clean();
 		};
 	}
 }
@@ -38,36 +52,92 @@ bool penguinPT::loader::envmap_loader::load_from_file(std::string path) {
 		return false;
 	}
 	printf("Envmap %s has been loaded correctly.\n", path.c_str());
+
+	build_CDF();
+	printf("CDF built correctly.\n");
 	return true;
 }
+__hostdev__ inline float Luminance(float r, float g, float b)
+{
+	return 0.212671 * r + 0.715160 * g + 0.072169 * b;
+}
+void penguinPT::loader::envmap_loader::build_CDF() {
+	float* weights = new float[width * height];
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x++) {
+			int idx = x * 4 + y * width * 4;
+			weights[x + y * width] = Luminance(data[idx], data[idx + 1], data[idx + 2]);
+		}
+	}
 
-bool penguinPT::loader::envmap_loader::send_to_gpu(Envmap& source, cudaTextureFilterMode filter) const {
+	cdf = new float[width * height];
+	cdf[0] = weights[0];
+	for (int i = 1; i < width * height; i++) {
+		cdf[i] = cdf[i - 1] + weights[i];
+	}
+	sum = cdf[width * height - 1];
+
+	delete[] weights;
+}
+
+void penguinPT::loader::envmap_loader::clean() {
+	CUDA_CHECK(cudaFreeArray(data_cuda));
+	CUDA_CHECK(cudaFreeArray(data_cuda_cdf));
+}
+bool penguinPT::loader::envmap_loader::send_to_gpu(Envmap& source, cudaTextureFilterMode filter) {
 	source.width = this->width;
 	source.height = this->height;
-
-	cudaArray_t data_cuda = 0;
+	source.sum = sum;
 
 	try {
-		cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float4>();
-		size_t spitch = width * sizeof(float4);
-		cudaMallocArray(&data_cuda, &channelDesc, width, height);
-		cudaMemcpy2DToArray(data_cuda, 0, 0, this->data, spitch, this->width * sizeof(float4), this->height, cudaMemcpyHostToDevice);
+		// generate pixel texture
+		{
+			cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float4>();
+			size_t spitch = width * sizeof(float4);
+			cudaMallocArray(&data_cuda, &channelDesc, width, height);
+			cudaMemcpy2DToArray(data_cuda, 0, 0, this->data, spitch, this->width * sizeof(float4), this->height, cudaMemcpyHostToDevice);
 
-		cudaResourceDesc resDesc;
-		memset(&resDesc, 0, sizeof(resDesc));
-		resDesc.resType = cudaResourceTypeArray;
-		resDesc.res.array.array = data_cuda;
+			cudaResourceDesc resDesc;
+			memset(&resDesc, 0, sizeof(resDesc));
+			resDesc.resType = cudaResourceTypeArray;
+			resDesc.res.array.array = data_cuda;
 
-		// default parameters
-		cudaTextureDesc texDesc;
-		memset(&texDesc, 0, sizeof(texDesc));
-		texDesc.addressMode[0] = cudaAddressModeWrap;
-		texDesc.addressMode[1] = cudaAddressModeWrap;
-		texDesc.filterMode = filter;
-		texDesc.readMode = cudaReadModeElementType;
-		texDesc.normalizedCoords = true;
+			// default parameters
+			cudaTextureDesc texDesc;
+			memset(&texDesc, 0, sizeof(texDesc));
+			texDesc.addressMode[0] = cudaAddressModeWrap;
+			texDesc.addressMode[1] = cudaAddressModeWrap;
+			texDesc.filterMode = filter;
+			texDesc.readMode = cudaReadModeElementType;
+			texDesc.normalizedCoords = true;
 
-		cudaCreateTextureObject(&source.image, &resDesc, &texDesc, NULL);
+			cudaCreateTextureObject(&source.image, &resDesc, &texDesc, NULL);
+		}
+
+		// generate cdf texture
+		{
+			cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float>();
+			size_t spitch = width * sizeof(float);
+			cudaMallocArray(&data_cuda_cdf, &channelDesc, width, height);
+
+			cudaMemcpy2DToArray(data_cuda_cdf, 0, 0, this->cdf, spitch, this->width * sizeof(float), this->height, cudaMemcpyHostToDevice);
+
+			cudaResourceDesc resDesc;
+			memset(&resDesc, 0, sizeof(resDesc));
+			resDesc.resType = cudaResourceTypeArray;
+			resDesc.res.array.array = data_cuda_cdf;
+
+			// default parameters
+			cudaTextureDesc texDesc;
+			memset(&texDesc, 0, sizeof(texDesc));
+			texDesc.addressMode[0] = cudaAddressModeWrap;
+			texDesc.addressMode[1] = cudaAddressModeWrap;
+			texDesc.filterMode = cudaFilterModeLinear;
+			texDesc.readMode = cudaReadModeElementType;
+			texDesc.normalizedCoords = false;
+
+			cudaCreateTextureObject(&source.cdf, &resDesc, &texDesc, NULL);
+		}
 	}
 	catch (const std::exception& e) {
 		std::cerr << "FAILED TO SEND HDR TEXTURE TO ENVMAP OBJECT.\"" << e.what() << "\"" << std::endl;
@@ -76,22 +146,61 @@ bool penguinPT::loader::envmap_loader::send_to_gpu(Envmap& source, cudaTextureFi
 	return true;
 }
 
-nanovdb::Vec3f penguinPT::Envmap::eval_envmap(nanovdb::Vec3f wi, float& pdf) {
+__device__ nanovdb::Vec3f penguinPT::Envmap::eval_envmap(nanovdb::Vec3f wi, float& pdf) {
 	float theta = acosf(CLAMP(wi[1], -1.0f, 1.0f));
 	float2 uv = make_float2((PI + atan2f(wi[2], wi[0])) * INV_TWO_PI, theta * INV_PI);
 
 	float4 read = tex2D<float4>(this->image, uv.x, uv.y);
-	return { read.x * strength, read.y * strength, read.z * strength };
-	//return nanovdb::Vec3f(1.f);
+	
+	float pdfNorm = (float)this->width * (float)this->height * INV_TWO_PI * INV_PI / this->sum;
 
-	// skip pdf part now
-	/*float pdfNorm = (float)r_Data.envmap.width * (float)r_Data.envmap.height * INV_TWO_PI * INV_PI / r_Data.envmap.sum;
-
-	float pdf = Luminance(color[0], color[1], color[2]) * pdfNorm;
+	pdf = Luminance(read.x, read.y, read.z) * pdfNorm;
 	float sin_theta = sinf(theta);
 
-	pdf /= sin_theta;
-
 	if (sin_theta == 0.f) pdf = 0.f;
-	return { color[0], color[1], color[2], pdf };*/
+	else pdf /= sin_theta;
+
+	return { read.x * strength, read.y * strength, read.z * strength };
+}
+__device__ inline float2 penguinPT::Envmap::binarySearch(float xi) {
+	int lower = 0;
+	int upper = this->height - 1;
+	while (lower < upper) {
+		int mid = (lower + upper) >> 1;
+		if (xi < tex2D<float>(cdf, this->width - 1, mid)) {
+			upper = mid;
+		}
+		else {
+			lower = mid + 1;
+		}
+	}
+	int y = lower;//(int)util::clamp(lower, 0, this->height - 1);
+
+	lower = 0;
+	upper = this->width - 1;
+	while (lower < upper) {
+		int mid = (lower + upper) >> 1;
+		if (xi < tex2D<float>(cdf, mid, y)) {
+			upper = mid;
+		}
+		else {
+			lower = mid + 1;
+		}
+	}
+	int x = lower;// (int)util::clamp(lower, 0, this->width - 1);
+	return make_float2((float)x / (float)this->width, (float)y / (float)this->height);
+
+}
+
+__device__ inline nanovdb::Vec3f penguinPT::Envmap::sample_envmap(nanovdb::Vec3f& L, float& pdf, Rand_state& state) {
+	float2 uv = binarySearch(randC(&state) * this->sum);
+	
+	float phi = uv.x * TWO_PI;
+	float theta = uv.y * PI;
+
+	float sin_theta = sinf(theta);
+
+	L = nanovdb::Vec3f(-sin_theta * cosf(phi), cosf(theta), -sin_theta * sinf(phi));
+
+	return eval_envmap(L, pdf);
 }
