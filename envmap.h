@@ -54,7 +54,13 @@ bool penguinPT::loader::envmap_loader::load_from_file(std::string path) {
 	printf("Envmap %s has been loaded correctly.\n", path.c_str());
 
 	build_CDF();
-	printf("CDF built correctly.\n");
+	printf("Envmap CDF built correctly.\n");
+
+	std::cout << "Envmap characteristics : \n";
+	std::cout << " - Height : " << height << "\n";
+	std::cout << " - Width : " << width << "\n";
+	std::cout << " - Sum : " << sum << "\n";
+	std::cout << "-------------------------------------------------\n\n";
 	return true;
 }
 __hostdev__ inline float Luminance(float r, float g, float b)

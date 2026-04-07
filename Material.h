@@ -78,7 +78,7 @@ namespace penguinPT {
 	__hostdev__ nanovdb::Vec3f principled_BSDF::eval(nanovdb::Vec3f wo, nanovdb::Vec3f wi, nanovdb::Vec3f N, float& pdf, float eta) const {
 		if (is_through) {
 			float k = wo.dot(wi);
-			//pdf = k == 1.f ? 1.f : 0.f;
+			//pdf = k >= 0.999f ? 1.f : 0.f; // bro this isn't good at all
 			return nanovdb::Vec3f(pdf);
 		}
 

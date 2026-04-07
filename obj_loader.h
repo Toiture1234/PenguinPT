@@ -174,7 +174,8 @@ namespace penguinPT::loader {
 	}
 
 	void obj_loader::send_to_scene(Scene_data& scene) {
-		std::cout << triangles_num << " " << triangle_list.size() << "\n";
+		std::cout << "Triangle data :\n";
+		std::cout << " - Number of triangles : " << triangles_num << "\n";
 		scene = Scene_data(triangle_list.size());
 		for (int i = 0; i < triangle_list.size(); i++) {
 			scene.triangles[i] = triangle_list.at(i);

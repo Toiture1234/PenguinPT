@@ -1,5 +1,10 @@
 #pragma once
 
+template <typename vec3T> __hostdev__ inline void safe_both(vec3T normal, nanovdb::math::Ray<float>& ray, bool through) {
+	float k = through ? -1.f : 1.f;
+	ray.setEye(ray.eye() + normal * SAFE_OFFSET * k);
+}
+
 // clamp any scalar
 #define CLAMP(x, v_min, v_max) x > v_min ? x < v_max ? x : v_max : v_min
 

@@ -127,7 +127,7 @@ namespace penguinPT {
 		float u = d * (-q).dot(v2v0);
 		float v = d * q.dot(v1v0);
 		float t = d * (-n).dot(rov0);
-		if (u < 0.0f || v < 0.0f || (u + v) > 1.0f || t > t_0 || t < 0.001f) return false;
+		if (u < 0.0f || v < 0.0f || (u + v) > 1.0f || t > t_0 || t < SAFE_OFFSET) return false;
 		float w = 1.0f - u - v;
 
 		uv = make_float2(u, v);
@@ -148,7 +148,7 @@ namespace penguinPT {
 		float u = d * (-q).dot(v2v0);
 		float v = d * q.dot(v1v0);
 		float t = d * (-n).dot(rov0);
-		if (u < 0.0f || v < 0.0f || (u + v) > 1.0f || t > t_out || t < 0.001f) return false;
+		if (u < 0.0f || v < 0.0f || (u + v) > 1.0f || t > t_out || t < SAFE_OFFSET) return false;
 		float w = 1.f - u - v;
 
 		uv = make_float2(u, v);
@@ -350,6 +350,7 @@ namespace penguinPT {
 
 		printf("BVH created, took %lld milliseconds.\n", exe_duration);
 		printf("BVH size : %i, Nodes used : %i\n", 2 * num_of_triangles - 1, nodes_used);
+		std::cout << "-------------------------------------------------\n\n";
 	}
 #define BIAS_GROW 0.01f
 	void Scene_data::update_nodes_bounds(int node_idx) {
@@ -410,16 +411,6 @@ namespace penguinPT {
 				rightArea[NUM_TEST_SPLIT - 2 - i] = rightBox.area();
 			}
 			
-			/*if (bMin == bMax) continue;
-			scale = (bMax - bMin) / (float)NUM_TEST_SPLIT;
-			for (int i = 1; i < NUM_TEST_SPLIT; i++) {
-				float cP = bMin + i * scale;
-				float cost = eval_SAH(node, a, cP);
-				if (cost < bCost)
-					split = cP, axis = a, bCost = cost;
-			}*/
-			//printf("C");
-			
 			scale = (float)(bMax - bMin) / (float)NUM_TEST_SPLIT;
 			for (int i = 0; i < NUM_TEST_SPLIT - 1; i++) 
 			{
@@ -428,7 +419,6 @@ namespace penguinPT {
 					axis = a, split = bMin + scale * (i + 1), bCost = planeCost;
 				}
 			}
-			//printf("D");
 		}
 		return bCost;
 	}
@@ -497,8 +487,8 @@ namespace penguinPT {
 	// --------------------------------------------------------------------------------
 	//                                BVH Intersection
 	// --------------------------------------------------------------------------------
-	// scene intersection with BVH, only intersects with solid triangles
 
+	// scene intersection with BVH, only intersects with solid triangles
 	__hostdev__ bool Scene_data::intersectScene_BVH(nanovdb::math::Ray<float> ray, hit_info& info) {
 		int stack[32];
 		int stackIdx = 0;

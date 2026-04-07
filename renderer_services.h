@@ -42,7 +42,7 @@ namespace penguinPT {
 
 			}
 			else {
-				std::cout << GPU_count << " CUDA capable devices has been detected. Continue.\n";
+				std::cout << GPU_count << " CUDA capable device(s) has been detected. Continue.\n";
 				
 				std::cout << "Please select which device you want to use : \n";
 				for (int i = 0; i < GPU_count; i++) {
@@ -65,6 +65,7 @@ namespace penguinPT {
 					CUDA_CHECK(cudaSetDevice(device_choice));
 				}
 			}
+			std::cout << "-------------------------------------------------\n\n";
 		}
 
 		void send_to_GPU_data() {
@@ -92,7 +93,7 @@ namespace penguinPT {
 				if (scene.num_of_volumes != 0) free(scene.volumes);
 			}
 			free(host_pixel_buffer);
-			std::cout << "Renderer service got freed.\n";
+			std::cout << "Renderer service freed.\n";
 		}
 	};
 }

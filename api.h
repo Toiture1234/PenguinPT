@@ -23,8 +23,12 @@
 #define MAX_DISTANCE 1.0e30f
 #define BOUNCES_PT 10
 #define BOUNCES_PT_VOL 512
-#define SAFE_OFFSET 0.005f
+#define SAFE_OFFSET 0.001f
 #define VOLUME_STACK_SIZE 16
+#define DIRECT_LIGHT_STEPS 16
+
+// only GPU for now (CPU support is planned but I need to implement envmap for CPU first)
+#define DIRECT_LIGHTNING
 
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
@@ -56,7 +60,7 @@ typedef curandStatePhilox4_32_10_t Rand_state;
 #define rand01 ((float)rand() / (float)RAND_MAX)
 
 // NEED TO MOVE THIS TO UTILITY
-#define CUDA_CHECK(expr) if(expr != CUDA_SUCCESS) { printf("CUDA ERROR AT LINE %i IN %s : %s \n", __LINE__, __FILE__, cudaGetErrorString(expr)); exit(99); }
+#define CUDA_CHECK(expr) { cudaError_t err = expr; if(err != CUDA_SUCCESS) { printf("CUDA ERROR AT LINE %i IN %s : %s \n", __LINE__, __FILE__, cudaGetErrorString(err)); exit(99); }}
 
 #define __hostdev__ __device__ __host__
 
@@ -78,7 +82,7 @@ typedef curandStatePhilox4_32_10_t Rand_state;
 #include "intersectors.h"
 #include "camera.h"
 #include "renderer_services.h"
-// #include "direct_lightning.h" <-- to create
+#include "direct_lightning.h"
 #include "integrators.h"
 #include "pathtracer.h"
 #include "obj_loader.h"
