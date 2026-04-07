@@ -9,9 +9,9 @@
 
 # Future features
   - Easier assets loading
-  - Phase function for volumes
-  - temperature grid
-  - materials
-  - XML mitsuba file format
-  - Envmap 🗸 (at least evaluation)
-  - Setting for english keyboards
+  - Multiple phase function for volumes
+  - temperature grid for volumes
+  - USDA file format ? (maybe not) 
+  - .mlt support ? 
+  - MIS
+  - (Setting for english keyboards ) 
