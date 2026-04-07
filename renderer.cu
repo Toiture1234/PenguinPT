@@ -30,45 +30,27 @@ namespace penguinPT {
     __device__ nanovdb::Vec3f getColor(renderer_services& rs, nanovdb::math::Ray<float> ray, float2 uv) {
         hit_info info;
         info.t = 1e10f;
-        float pdf = 1.f;
-
-        //if (rs.scene.intersectScene_full(ray, info))
-            //return rs.scene.bsdf_list[info.BSDF_index].eval(ray, info.normal, { 0.f, 1.f, 0. }, pdf, rs.scene.bsdf_list[info.BSDF_index].params);
-            //return info.normal * 0.5f + nanovdb::Vec3f(0.5f);
-        //return (nanovdb::Vec3f)info.debug * nanovdb::Vec3f(1.f, 0.f, 0.01f);
-        //return { 0.f, 0.f, 1.f };
+        
         if(rs.is_rendering)
             return volume_pathtrace_device_spectral(rs, ray);
         if (rs.scene.intersectScene_full(ray, info)) {
             return info.normal.dot(-ray.dir()) * rs.scene.bsdf_list[info.BSDF_index].albedo;
         }
-        nanovdb::Vec3f skyBlue = util::mix(nanovdb::Vec3f(0.4f, 0.7f, 1.f), nanovdb::Vec3f(0.9f, 0.95f, 1.f), expf(-5.f * fabsf(ray.dir()[1]))) * 0.15f;
-        //return ((ray.dir().dot(nanovdb::Vec3f(1.f, 1.f, 0.f).normalize()) > 0.95f ? nanovdb::Vec3f(1.f) * 8.f : nanovdb::Vec3f(0.f)) + skyBlue); 
-        //return skyBlue;
         float pdf_e;
         return (rs.scene.environnement_map.eval_envmap(ray.dir(), pdf_e));
     }
     __host__ nanovdb::Vec3f getColor_host(renderer_services& rs, nanovdb::math::Ray<float> ray, float2 uv) {
         hit_info info;
         info.t = 1e10f;
-        float pdf = 1.f;
-
-        //if (rs.scene.intersectScene_full(ray, info))
-            //return rs.scene.bsdf_list[info.BSDF_index].eval(ray, info.normal, { 0.f, 1.f, 0. }, pdf, rs.scene.bsdf_list[info.BSDF_index].params);
-            //return info.normal * 0.5f + nanovdb::Vec3f(0.5f);
-        //return (nanovdb::Vec3f)info.debug * nanovdb::Vec3f(1.f, 0.f, 0.01f);
-        //return { 0.f, 0.f, 1.f };
+        
         if (rs.is_rendering)
             return volume_pathtrace_host_spectral(rs, ray);
 
         if (rs.scene.intersectScene_full(ray, info)) {
             return info.normal.dot(-ray.dir()) * rs.scene.bsdf_list[info.BSDF_index].albedo;
         }
-        nanovdb::Vec3f skyBlue = util::mix(nanovdb::Vec3f(0.4f, 0.7f, 1.f), nanovdb::Vec3f(0.9f, 0.95f, 1.f), expf(-5.f * fabsf(ray.dir()[1]))) * 0.15f;
-        //return ((ray.dir().dot(nanovdb::Vec3f(1.f, 1.f, 0.f).normalize()) > 0.95f ? nanovdb::Vec3f(1.f) * 8.f : nanovdb::Vec3f(0.f)) + skyBlue); 
         float pdf_e;
-        //return (rs.scene.environnement_map.eval_envmap(ray.dir(), pdf_e));
-        return skyBlue;
+        return (rs.scene.environnement_map.eval_envmap_host(ray.dir(), pdf_e));
     }
     __global__ void renderFrame_kernel(renderer_services rs, uint8_t* dev_px_buffer, nanovdb::Vec3f* dev_acc_buffer) {
         unsigned int x = threadIdx.x + blockIdx.x * blockDim.x;
@@ -218,9 +200,6 @@ namespace penguinPT {
         rs.check_CUDA_AVAILABLITY();
         rs.mainCam.speed = 20.f;
         rs.mainCam.zoom = 1.f;
-        //rs.mainCam.multiplier = nanovdb::Vec3f(1.f, 0.9f, 0.8f);
-        //rs.mainCam.vignette = 0.8f;
-        //rs.mainCam.saturation = 0.7f;
         rs.mainCam.position = { 0.f, 30.f, 15.f };
         rs.is_rendering = false;
 
@@ -246,11 +225,11 @@ namespace penguinPT {
         loader05.create_new_BSDF("glass", 0.f, nanovdb::Vec3f(1.f), nanovdb::Vec3f(0.f), nanovdb::Vec3f(0.f), 0.f, 2.418f, 1.f);
         loader05.create_new_BSDF("white", { 0.6f, 0.6f, 0.6f }, 0.1f);
                 
-        loader01.load_obj("just_a_plane.obj", { 0.f, -10.f, 0.f }, 500.f, loader05.gifn("floor"));
+        //loader01.load_obj("just_a_plane.obj", { 0.f, -10.f, 0.f }, 500.f, loader05.gifn("floor"));
         //loader01.load_obj("diamond.obj", { 0.f, 0.05f, 50.f }, 10.f, loader05.gifm("glass"));
-        loader01.load_obj("horse_statue.obj", { 50.f, 0.05f, 0.f }, 200.f, loader05.gifn("white"));
+        //loader01.load_obj("horse_statue.obj", { 50.f, 0.05f, 0.f }, 200.f, loader05.gifn("white"));
         //loader01.load_obj("sphere.obj", { 50.f, 15.f, 0.f }, 10.f, loader05.gifn("glass"));
-        //loader01.load_obj("fireplace_room_nolight.obj", { 0.f, 0.f, 0.f }, 10.f, loader05.gifm("white"));
+        loader01.load_obj("ship.obj", { 0.f, 0.f, 0.f }, 10.f, loader05.gifn("white"));
         
         loader01.send_to_scene(rs.scene);
         loader05.send_to_scene(rs.scene);
@@ -269,7 +248,7 @@ namespace penguinPT {
         //loader02.volume_parameters(1, nanovdb::Vec3f(0.5f), nanovdb::Vec3f(0.5f), -0.4f, nanovdb::Vec3f(0.f));
         //loader02.set_tranforms(1, 0.1f, nanovdb::Vec3f(0.f, 20.f, 0.f));
         
-        loader02.volume_parameters(0, nanovdb::Vec3f(2.f), nanovdb::Vec3f(1.f), 0.85f, nanovdb::Vec3f(0.f));
+        loader02.volume_parameters(0, nanovdb::Vec3f(0.5f), nanovdb::Vec3f(0.5f), -0.4f, nanovdb::Vec3f(0.f));
         loader02.set_tranforms(0, 0.1f, nanovdb::Vec3f(0.f, 0.f, 0.f));
 
         //loader02.volume_parameters(0, nanovdb::Vec3f(20.f), nanovdb::Vec3f(0.3f), 0.7f, nanovdb::Vec3f(0.), 20.f);

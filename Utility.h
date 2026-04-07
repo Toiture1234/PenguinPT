@@ -21,6 +21,9 @@ namespace penguinPT::util {
 	__hostdev__ inline float clamp(float a, float x, float y) {
 		return a < x ? x : a > y ? y : a;
 	}
+	__hostdev__ inline int clamp(int a, int x, int y) {
+		return a < x ? x : a > y ? y : a;
+	}
 	__hostdev__ inline nanovdb::Vec3f clamp(const nanovdb::Vec3f& a, const nanovdb::Vec3f& l, const nanovdb::Vec3f& h) {
 		return { clamp(a[0], l[0], h[0]), clamp(a[1], l[1], h[1]), clamp(a[2], l[2], h[3]) };
 	}

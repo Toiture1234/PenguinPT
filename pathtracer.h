@@ -196,6 +196,8 @@ namespace penguinPT {
 		float scattering_sss = 0.f;
 		float sss_g = 0.f;
 
+		bool surface_scatter = false;
+
 		for (unsigned int i = 0; i < BOUNCES_PT_VOL; i++) {
 			hit_info info;
 			info.t = MAX_DISTANCE;
@@ -207,17 +209,23 @@ namespace penguinPT {
 			info.normal = util::refIfNeg(info.normal, -ray.dir());
 
 			if (!hit) {
-				nanovdb::Vec3f skyBlue = util::mix(nanovdb::Vec3f(0.4f, 0.7f, 1.f), nanovdb::Vec3f(0.9f, 0.95f, 1.f), expf(-5.f * fabsf(ray.dir()[1]))) * 0.15f;
-				nanovdb::Vec3f sun = (ray.dir().dot(nanovdb::Vec3f(1.f, 0.6f, -1.f).normalize()) > 0.9f ? nanovdb::Vec3f(1.f, 0.7f, 1.f) * 2.f : nanovdb::Vec3f(0.f));
-				nanovdb::Vec3f sun2 = (ray.dir().dot(nanovdb::Vec3f(1.f).normalize()) > 0.95f ? nanovdb::Vec3f(1.f) * 8.f : nanovdb::Vec3f(0.f));
-				L[channel] += (sun + sun2 + skyBlue)[channel] * throughput;
-				//L += nanovdb::Vec3f(ray.dir()[1] * 0.5f + 0.5f) * throughput;
-				//L += fmaxf(sinf(ray.dir()[0] * 5.f) * sinf(ray.dir()[2] * 5.f), 0.f) * throughput;
-				//L += util::mix(0.5f, 1.f, ray.dir()[1] * 0.5f + 0.5f) * nanovdb::Vec3f(0.8f, 0.9f, 1.f) * throughput * 0.3f;
-				float pdf_e;
-				//L[channel] += (rs.scene.environnement_map.eval_envmap(ray.dir(), pdf_e))[channel] * throughput;
-				//L += ((ray.dir()[1] > 0.90f ? 16.f : 0.f) +) * throughput;
-				//L += nanovdb::Vec3f(0.5f) * throughput;
+#ifdef DIRECT_LIGHTNING
+				float envmap_pdf = 1.f;
+				nanovdb::Vec3f envmap_col = rs.scene.environnement_map.eval_envmap_host(ray.dir(), envmap_pdf);
+
+				float misWeight = 1.f;
+				if (i > 0)
+					misWeight = util::powerHeuristic(scatterPDF, envmap_pdf);
+
+				if (!surface_scatter)
+					misWeight = 1.f;
+
+				if (misWeight > 0.f)
+					L[channel] += (misWeight * envmap_col)[channel] * throughput;
+#else 
+				float envmap_pdf;
+				L[channel] += (rs.scene.environnement_map.eval_envmap_host(ray.dir(), envmap_pdf))[channel] * throughput;
+#endif 
 				break;
 			}
 
@@ -237,6 +245,26 @@ namespace penguinPT {
 					nanovdb::Vec3f wi;
 					bsdf_value = phase_function::Henyey_greenstein::sample_host(ray.dir(), wi, sss_g, scatterPDF);
 
+#ifdef DIRECT_LIGHTNING
+					{
+						nanovdb::Vec3f envmap_dir;
+						float envmap_pdf;
+
+						nanovdb::Vec3f envmap_value = rs.scene.environnement_map.sample_envmap_host(envmap_dir, envmap_pdf, rs.rng_state);
+
+						float bsdf_pdf;
+						float bsdf_value_float = phase_function::Henyey_greenstein::eval(envmap_dir.dot(ray.dir()), sss_g, bsdf_pdf);
+
+						float visibility = direct_visibility_host(rs, nanovdb::math::Ray<float>(ray(t_max), envmap_dir), isInside, attenuation, scattering_sss, channel);
+
+						if (envmap_pdf > 0.f) {
+							float misWeight = util::powerHeuristic(envmap_pdf, bsdf_pdf);
+							if (misWeight > 0.f)
+								L[channel] += (envmap_value)[channel] * bsdf_value_float * visibility * throughput / envmap_pdf * misWeight;
+						}
+					}
+#endif
+					surface_scatter = true;
 					ray.reset(ray(t_max), wi);
 				}
 				//  absorption
@@ -249,6 +277,27 @@ namespace penguinPT {
 				nanovdb::Vec3f phase_L = phase_function::Henyey_greenstein::sample_host(ray.dir(), wi, action_volume->g, scatterPDF);
 				bsdf_value = action_volume->albedo * phase_L;
 
+#ifdef DIRECT_LIGHTNING
+				{
+					nanovdb::Vec3f envmap_dir;
+					float envmap_pdf;
+
+					nanovdb::Vec3f envmap_value = rs.scene.environnement_map.sample_envmap_host(envmap_dir, envmap_pdf, rs.rng_state);
+
+					float bsdf_pdf;
+					float bsdf_value_float = phase_function::Henyey_greenstein::eval(envmap_dir.dot(ray.dir()), action_volume->g, bsdf_pdf);
+					nanovdb::Vec3f bsdf_value_envmap = bsdf_value_float * action_volume->albedo;
+
+					float visibility = direct_visibility_host(rs, nanovdb::math::Ray<float>(ray(t_max), envmap_dir), isInside, attenuation, scattering_sss, channel);
+
+					if (envmap_pdf > 0.f) {
+						float misWeight = util::powerHeuristic(envmap_pdf, bsdf_pdf);
+						if (misWeight > 0.f)
+							L[channel] += (envmap_value * bsdf_value_envmap)[channel] * visibility * throughput / envmap_pdf * misWeight;
+					}
+				}
+#endif
+				surface_scatter = true;
 				L[channel] += action_volume->emission[channel] * throughput;
 
 				ray.reset(ray(t_max), wi);
@@ -264,6 +313,27 @@ namespace penguinPT {
 				bsdf_value = surface_bsdf.sample_HOST(-ray.dir(), L_dir, info.normal, scatterPDF, rs.rng_state, through, isInside);
 				L[channel] += surface_bsdf.emission[channel] * throughput;
 
+#ifdef DIRECT_LIGHTNING
+				if (info.BSDF_index != BSDF_TROUGH_ID) {
+					nanovdb::Vec3f envmap_dir;
+					float envmap_pdf;
+
+					nanovdb::Vec3f envmap_value = rs.scene.environnement_map.sample_envmap_host(envmap_dir, envmap_pdf, rs.rng_state);
+
+					float bsdf_pdf = 1.f;
+					float eta = isInside ? surface_bsdf.ior : 1.f / surface_bsdf.ior;
+					nanovdb::Vec3f bsdf_value_envmap = surface_bsdf.eval(-ray.dir(), envmap_dir, info.normal, bsdf_pdf, eta);
+
+					float visibility = direct_visibility_host(rs, nanovdb::math::Ray<float>(ray(info.t), envmap_dir), isInside, attenuation, scattering_sss, channel);
+
+					if (envmap_pdf > 0.f) {
+						float misWeight = util::powerHeuristic(envmap_pdf, bsdf_pdf);
+						if (misWeight > 0.f)
+							L[channel] += (envmap_value * bsdf_value_envmap)[channel] * visibility * throughput / envmap_pdf * misWeight;
+					}
+				}
+#endif
+				surface_scatter = true;
 				ray.reset(ray(info.t), L_dir);
 
 				if (through) attenuation = surface_bsdf.absorption, scattering_sss = surface_bsdf.scattering, sss_g = surface_bsdf.g;

@@ -3,7 +3,6 @@
 namespace penguinPT {
 
 	// ratio tracking
-	// yes I know this feel weird because it would be better if in integrators but this would cause issues
 	__device__ static float ratio_tracking_spectral_device(renderer_services& rs, nanovdb::math::Ray<float> ray, float t_max, int nb_vol, Volume** volumes, int channel);
 	__host__ static float ratio_tracking_spectral_host(renderer_services& rs, nanovdb::math::Ray<float> ray, float t_max, int nb_vol, Volume** volumes, int channel);
 

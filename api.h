@@ -27,7 +27,7 @@
 #define VOLUME_STACK_SIZE 16
 #define DIRECT_LIGHT_STEPS 16
 
-// only GPU for now (CPU support is planned but I need to implement envmap for CPU first)
+// still need to figure out why it's not working well on CPU
 #define DIRECT_LIGHTNING
 
 #include "cuda_runtime.h"
@@ -73,6 +73,7 @@ typedef curandStatePhilox4_32_10_t Rand_state;
 #define PI_OVER_2 1.5707963267948966192313216916398f
 
 #include "Utility.h"
+#include "CPU_texture.h"
 #include "Microfacet.h"
 #include "Material.h"
 #include "phase_function.h"

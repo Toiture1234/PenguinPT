@@ -6,8 +6,13 @@ namespace penguinPT {
 		__hostdev__ Envmap() : width(0), height(0), strength(1.f), sum(0.f) {}
 		__hostdev__ ~Envmap() {}
 
+		// GPU stuff
 		cudaTextureObject_t image = 0;
 		cudaTextureObject_t cdf = 0;
+
+		// cpu stuff
+		CPU_float4_texture image_cpu;
+		CPU_float_texture cdf_cpu;
 
 		unsigned int width, height;
 		float strength;
@@ -17,6 +22,10 @@ namespace penguinPT {
 		__device__ nanovdb::Vec3f eval_envmap(nanovdb::Vec3f wi, float& pdf);
 		__device__ nanovdb::Vec3f sample_envmap(nanovdb::Vec3f& L, float& pdf, Rand_state& state);
 		__device__ float2 binarySearch(float xi);
+
+		__host__ nanovdb::Vec3f eval_envmap_host(nanovdb::Vec3f wi, float& pdf);
+		__host__ nanovdb::Vec3f sample_envmap_host(nanovdb::Vec3f& L, float& pdf, Rand_state& state);
+		__host__ float2 binarySearch_host(float xi);
 	};
 
 	namespace loader {
@@ -95,6 +104,7 @@ bool penguinPT::loader::envmap_loader::send_to_gpu(Envmap& source, cudaTextureFi
 	source.height = this->height;
 	source.sum = sum;
 
+	// GPU
 	try {
 		// generate pixel texture
 		{
@@ -146,9 +156,16 @@ bool penguinPT::loader::envmap_loader::send_to_gpu(Envmap& source, cudaTextureFi
 		}
 	}
 	catch (const std::exception& e) {
-		std::cerr << "FAILED TO SEND HDR TEXTURE TO ENVMAP OBJECT.\"" << e.what() << "\"" << std::endl;
+		std::cerr << "FAILED TO SEND HDR TEXTURE TO ENVMAP OBJECT ON GPU SIDE.\"" << e.what() << "\"" << std::endl;
 		return false;
 	}
+
+	// CPU
+	source.image_cpu.tex_data = data;
+	source.cdf_cpu.tex_data = cdf;
+	source.image_cpu.width = width, source.image_cpu.height = height;
+	source.cdf_cpu.width = width, source.cdf_cpu.height = height;
+
 	return true;
 }
 
@@ -193,7 +210,7 @@ __device__ inline float2 penguinPT::Envmap::binarySearch(float xi) {
 			lower = mid + 1;
 		}
 	}
-	int x = lower;// (int)util::clamp(lower, 0, this->width - 1);
+	int x = lower;
 	return make_float2((float)x / (float)this->width, (float)y / (float)this->height);
 
 }
@@ -209,4 +226,63 @@ __device__ inline nanovdb::Vec3f penguinPT::Envmap::sample_envmap(nanovdb::Vec3f
 	L = nanovdb::Vec3f(-sin_theta * cosf(phi), cosf(theta), -sin_theta * sinf(phi));
 
 	return eval_envmap(L, pdf);
+}
+
+__host__ nanovdb::Vec3f penguinPT::Envmap::eval_envmap_host(nanovdb::Vec3f wi, float& pdf) {
+	float theta = acosf(CLAMP(wi[1], -1.0f, 1.0f));
+	float2 uv = make_float2((PI + atan2f(wi[2], wi[0])) * INV_TWO_PI, theta * INV_PI);
+
+	float4 read = image_cpu.sample_float(uv.x, uv.y);
+
+	float pdfNorm = (float)this->width * (float)this->height * INV_TWO_PI * INV_PI / this->sum;
+
+	pdf = Luminance(read.x, read.y, read.z) * pdfNorm;
+	float sin_theta = sinf(theta);
+
+	if (sin_theta == 0.f) pdf = 0.f;
+	else pdf /= sin_theta;
+
+	return { read.x * strength, read.y * strength, read.z * strength };
+}
+__host__ inline float2 penguinPT::Envmap::binarySearch_host(float xi) {
+	int lower = 0;
+	int upper = this->height - 1;
+	while (lower < upper) {
+		int mid = (lower + upper) >> 1;
+		if (xi < cdf_cpu.sample_int(this->width - 1, mid)) {
+			upper = mid;
+		}
+		else {
+			lower = mid + 1;
+		}
+	}
+	int y = lower;//(int)util::clamp(lower, 0, this->height - 1);
+
+	lower = 0;
+	upper = this->width - 1;
+	while (lower < upper) {
+		int mid = (lower + upper) >> 1;
+		if (xi < cdf_cpu.sample_int(mid, y)) {
+			upper = mid;
+		}
+		else {
+			lower = mid + 1;
+		}
+	}
+	int x = lower;// (int)util::clamp(lower, 0, this->width - 1);
+	return make_float2((float)x / (float)this->width, (float)y / (float)this->height);
+
+}
+
+__host__ inline nanovdb::Vec3f penguinPT::Envmap::sample_envmap_host(nanovdb::Vec3f& L, float& pdf, Rand_state& state) {
+	float2 uv = binarySearch_host(rand01 * this->sum);
+
+	float phi = uv.x * TWO_PI;
+	float theta = uv.y * PI;
+
+	float sin_theta = sinf(theta);
+
+	L = nanovdb::Vec3f(-sin_theta * cosf(phi), cosf(theta), -sin_theta * sinf(phi));
+
+	return eval_envmap_host(L, pdf);
 }
