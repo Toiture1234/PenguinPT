@@ -28,7 +28,8 @@
 #define DIRECT_LIGHT_STEPS 16
 
 // still need to figure out why it's not working well on CPU
-#define DIRECT_LIGHTNING
+//#define DIRECT_LIGHTNING
+//#define EXPERIMENTAL_CAUSTICS
 
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"

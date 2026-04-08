@@ -135,12 +135,8 @@ namespace penguinPT {
 
 				principled_BSDF& surface_bsdf = rs.scene.bsdf_list[info.BSDF_index];
 
-				nanovdb::Vec3f L_dir;
-
-				bsdf_value = surface_bsdf.sample_CUDA(-ray.dir(), L_dir, info.normal, scatterPDF, rs.rng_state, through, isInside);
-
 #ifdef DIRECT_LIGHTNING
-				if(info.BSDF_index != BSDF_TROUGH_ID) {
+				if (!surface_bsdf.is_through) {
 					nanovdb::Vec3f envmap_dir;
 					float envmap_pdf;
 
@@ -159,6 +155,9 @@ namespace penguinPT {
 					}
 				}
 #endif
+
+				nanovdb::Vec3f L_dir;
+				bsdf_value = surface_bsdf.sample_CUDA(-ray.dir(), L_dir, info.normal, scatterPDF, rs.rng_state, through, isInside);
 				
 				L[channel] += surface_bsdf.emission[channel] * throughput;
 
@@ -309,12 +308,8 @@ namespace penguinPT {
 
 				principled_BSDF& surface_bsdf = rs.scene.bsdf_list[info.BSDF_index];
 
-				nanovdb::Vec3f L_dir;
-				bsdf_value = surface_bsdf.sample_HOST(-ray.dir(), L_dir, info.normal, scatterPDF, rs.rng_state, through, isInside);
-				L[channel] += surface_bsdf.emission[channel] * throughput;
-
 #ifdef DIRECT_LIGHTNING
-				if (info.BSDF_index != BSDF_TROUGH_ID) {
+				if (!surface_bsdf.is_through) {
 					nanovdb::Vec3f envmap_dir;
 					float envmap_pdf;
 
@@ -333,6 +328,11 @@ namespace penguinPT {
 					}
 				}
 #endif
+
+				nanovdb::Vec3f L_dir;
+				bsdf_value = surface_bsdf.sample_HOST(-ray.dir(), L_dir, info.normal, scatterPDF, rs.rng_state, through, isInside);
+				L[channel] += surface_bsdf.emission[channel] * throughput;
+
 				surface_scatter = true;
 				ray.reset(ray(info.t), L_dir);
 

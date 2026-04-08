@@ -215,5 +215,9 @@ namespace penguinPT::file_util {
 		}
 		return tokens;
 	}
-	
+	std::string remove_quote(std::string s) {
+		std::string f;
+		for (int i = 0; i < s.size(); i++) if (s[i] != '\"') f += s[i];
+		return f;
+	}
 }

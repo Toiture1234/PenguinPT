@@ -18,9 +18,10 @@ namespace penguinPT {
 
 			if (!hit) return T;
 
+#ifdef EXPERIMENTAL_CAUSTICS
 			// solid hit
 			principled_BSDF& surface_bsdf = rs.scene.bsdf_list[info.BSDF_index];
-			if (!surface_bsdf.is_through) return 0.f;
+			if (surface_bsdf.transparency < 0.05f) return 0.f;
 
 			// now the real battle begins
 			// account for volumes transmittance
@@ -31,14 +32,28 @@ namespace penguinPT {
 			
 			// account for translucent BSDF 
 			float eta = is_inside ? surface_bsdf.ior : 1.f / surface_bsdf.ior;
-			float bsdf_pdf = INV_4_PI;
+			float bsdf_pdf = 1.f;
 			nanovdb::Vec3f bsdf_value = surface_bsdf.eval(-ray.dir(), ray.dir(), info.normal, bsdf_pdf, eta);
 
-			T *= bsdf_value[channel] / INV_4_PI;
+			if(bsdf_pdf > 0.f)
+				T *= bsdf_value[channel] / bsdf_pdf;
 
 			// change inside if BSDF is through
-			if (surface_bsdf.is_through && surface_bsdf.change_medium) is_inside = !is_inside, attenuation = surface_bsdf.absorption, scattering_sss = surface_bsdf.scattering;
+			if (surface_bsdf.change_medium) is_inside = !is_inside, attenuation = surface_bsdf.absorption, scattering_sss = surface_bsdf.scattering;
+#else 
+			// solid hit
+			principled_BSDF& surface_bsdf = rs.scene.bsdf_list[info.BSDF_index];
+			if (surface_bsdf.transparency < 0.05f) return 0.f;
+			T *= surface_bsdf.transparency;
 
+			// account for volumes transmittance
+			T *= ratio_tracking_spectral_device(rs, ray, info.t, info.nb_vol, info.all_volumes, channel);
+
+			// account for absorption
+			if (is_inside) T *= exp(-fmaxf(info.t, 0.f) * (attenuation[channel] + scattering_sss));
+
+			if (surface_bsdf.change_medium) is_inside = !is_inside, attenuation = surface_bsdf.absorption, scattering_sss = surface_bsdf.scattering;
+#endif
 			ray.setEye(ray(info.t));
 		}
 
@@ -56,9 +71,10 @@ namespace penguinPT {
 
 			if (!hit) return T;
 
+#ifdef EXPERIMENTAL_CAUSTICS
 			// solid hit
 			principled_BSDF& surface_bsdf = rs.scene.bsdf_list[info.BSDF_index];
-			if (!surface_bsdf.is_through) return 0.f;
+			if (surface_bsdf.transparency < 0.05f) return 0.f;
 
 			// now the real battle begins
 			// account for volumes transmittance
@@ -69,14 +85,29 @@ namespace penguinPT {
 
 			// account for translucent BSDF 
 			float eta = is_inside ? surface_bsdf.ior : 1.f / surface_bsdf.ior;
-			float bsdf_pdf = INV_4_PI;
+			float bsdf_pdf = 1.f;
 			nanovdb::Vec3f bsdf_value = surface_bsdf.eval(-ray.dir(), ray.dir(), info.normal, bsdf_pdf, eta);
 
-			T *= bsdf_value[channel] / INV_4_PI;
+			if (bsdf_pdf > 0.f)
+				T *= bsdf_value[channel] / bsdf_pdf;
 
 			// change inside if BSDF is through
-			if (surface_bsdf.is_through && surface_bsdf.change_medium) is_inside = !is_inside, attenuation = surface_bsdf.absorption, scattering_sss = surface_bsdf.scattering;
+			if (surface_bsdf.change_medium) is_inside = !is_inside, attenuation = surface_bsdf.absorption, scattering_sss = surface_bsdf.scattering;
+#else 
+			// solid hit
+			principled_BSDF& surface_bsdf = rs.scene.bsdf_list[info.BSDF_index];
+			if (surface_bsdf.transparency < 0.05f) return 0.f;
+			T *= surface_bsdf.transparency;
 
+			// account for volumes transmittance
+			T *= ratio_tracking_spectral_host(rs, ray, info.t, info.nb_vol, info.all_volumes, channel);
+
+			// account for absorption
+			if (is_inside) T *= exp(-fmaxf(info.t, 0.f) * (attenuation[channel] + scattering_sss));
+
+			if (surface_bsdf.change_medium) is_inside = !is_inside, attenuation = surface_bsdf.absorption, scattering_sss = surface_bsdf.scattering;
+
+#endif
 			ray.setEye(ray(info.t));
 		}
 

@@ -212,24 +212,24 @@ namespace penguinPT {
         loader::usd_scene_loader loader04;
         loader::BSDF_loader loader05;
 
-        //loader04.load_usd_scene("untitled.usda");
+        loader04.load_usd_scene("untitled.usda");
 
         loader05.create_new_BSDF("floor", 1.f, nanovdb::Vec3f(0.4f, 0.3f, 0.1f), nanovdb::Vec3f(0.f), nanovdb::Vec3f(0.f), 0.f, 1.5f, 0.f);
 
         //loader05.create_new_BSDF("gold", 0.1f, nanovdb::Vec3f(0.8f, 0.4f, 0.05f), nanovdb::Vec3f(0.f), nanovdb::Vec3f(1.f), 1.f, 1.47f, 0.f);
         
-        loader05.create_new_BSDF("jade", 0.05, nanovdb::Vec3f(0.7f, 1.f, 0.5f), nanovdb::Vec3f(0.f), nanovdb::Vec3f(0.2f, 0.f, 0.2f), 0.f, 1.640f, 0.8f);
+        loader05.create_new_BSDF("jade", 0.05, nanovdb::Vec3f(0.7f, 1.f, 0.5f), nanovdb::Vec3f(0.f), nanovdb::Vec3f(0.2f, 0.f, 0.2f), 0.f, 1.66f, 0.8f);
         loader05.BSDF_list.at(loader05.gifn("jade")).g = -0.8f;
         loader05.BSDF_list.at(loader05.gifn("jade")).scattering = 4.f;
         
-        loader05.create_new_BSDF("glass", 0.f, nanovdb::Vec3f(1.f), nanovdb::Vec3f(0.f), nanovdb::Vec3f(0.f), 0.f, 2.418f, 1.f);
+        loader05.create_new_BSDF("glass", 0.f, nanovdb::Vec3f(1.f), nanovdb::Vec3f(0.f), nanovdb::Vec3f(0.f), 0.f, 1.5f, 1.f);
         loader05.create_new_BSDF("white", { 0.6f, 0.6f, 0.6f }, 0.1f);
                 
-        //loader01.load_obj("just_a_plane.obj", { 0.f, -10.f, 0.f }, 500.f, loader05.gifn("floor"));
+        loader01.load_obj("just_a_plane.obj", { 0.f, 0.f, 0.f }, 500.f, loader05.gifn("floor"));
         //loader01.load_obj("diamond.obj", { 0.f, 0.05f, 50.f }, 10.f, loader05.gifm("glass"));
-        //loader01.load_obj("horse_statue.obj", { 50.f, 0.05f, 0.f }, 200.f, loader05.gifn("white"));
-        //loader01.load_obj("sphere.obj", { 50.f, 15.f, 0.f }, 10.f, loader05.gifn("glass"));
-        loader01.load_obj("ship.obj", { 0.f, 0.f, 0.f }, 10.f, loader05.gifn("white"));
+        loader01.load_obj("horse_statue.obj", { 0.f, 0.05f, 0.f }, 200.f, loader05.gifn("jade"));
+        //loader01.load_obj("cube.obj", { 50.f, 15.f, 0.f }, 10.f, loader05.gifn("jade"));
+        //loader01.load_obj("ship.obj", { 0.f, 0.f, 0.f }, 10.f, loader05.gifn("white"));
         
         loader01.send_to_scene(rs.scene);
         loader05.send_to_scene(rs.scene);
@@ -237,8 +237,8 @@ namespace penguinPT {
         rs.scene.build_BVH();
         
         // ENVMAP
-        loader03.load_from_file("assets/hdris/qwantani_late_afternoon_2k.hdr");
-        rs.scene.environnement_map.strength = 1.f;
+        loader03.load_from_file("assets/hdris/sky_bright.hdr");
+        rs.scene.environnement_map.strength = 0.3f;
         loader03.send_to_gpu(rs.scene.environnement_map, cudaFilterModeLinear);
 
         //loader02.load_nvdb("volume.nvdb", rs.CUDA_CAPABLE_GPU);
@@ -248,11 +248,11 @@ namespace penguinPT {
         //loader02.volume_parameters(1, nanovdb::Vec3f(0.5f), nanovdb::Vec3f(0.5f), -0.4f, nanovdb::Vec3f(0.f));
         //loader02.set_tranforms(1, 0.1f, nanovdb::Vec3f(0.f, 20.f, 0.f));
         
-        loader02.volume_parameters(0, nanovdb::Vec3f(0.5f), nanovdb::Vec3f(0.5f), -0.4f, nanovdb::Vec3f(0.f));
-        loader02.set_tranforms(0, 0.1f, nanovdb::Vec3f(0.f, 0.f, 0.f));
+        //loader02.volume_parameters(0, nanovdb::Vec3f(0.5f), nanovdb::Vec3f(0.5f), -0.4f, nanovdb::Vec3f(0.f));
+        //loader02.set_tranforms(0, 0.1f, nanovdb::Vec3f(0.f, 0.f, 0.f));
 
-        //loader02.volume_parameters(0, nanovdb::Vec3f(20.f), nanovdb::Vec3f(0.3f), 0.7f, nanovdb::Vec3f(0.), 20.f);
-        //loader02.set_tranforms(0, 0.8f, nanovdb::Vec3f(0.f, 3.f, 0.f));
+        loader02.volume_parameters(0, nanovdb::Vec3f(20.f), nanovdb::Vec3f(0.5f), -0.3f, nanovdb::Vec3f(0.), 20.f);
+        loader02.set_tranforms(0, 0.8f, nanovdb::Vec3f(0.f, 3.f, 0.f));
 
         loader02.send_to_scene(rs.scene);
        
