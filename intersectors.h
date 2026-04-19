@@ -47,8 +47,9 @@ namespace penguinPT {
 	class Triangle_data {
 	public:
 		nanovdb::Vec3f nA, nB, nC;
+		float2 uvA, uvB, uvC;
 		unsigned int BSDF_index;
-		__hostdev__ Triangle_data() : nA(0.f), nB(0.f), nC(0.f), BSDF_index(BASE_BSDF) {};
+		__hostdev__ Triangle_data() : nA(0.f), nB(0.f), nC(0.f), BSDF_index(BASE_BSDF), uvA({ 0.f, 0.f }), uvB({ 0.f, 0.f }), uvC({ 0.f, 0.f }) {};
 		__hostdev__ ~Triangle_data() {}
 	};
 	class BVH_node {
@@ -556,7 +557,10 @@ namespace penguinPT {
 			float mult = -SIGN(u_dot);
 			info.normal = (intersected_data.nA.dot(intersected_data.nA) > 0.f ? (intersected_data.nA * w + intersected_data.nB * u + intersected_data.nC * v).normalize() : info.normal) * mult;
 			info.BSDF_index = intersected_data.BSDF_index;
-			info.uv = uv;
+			
+			// blend info.uv between everything
+			info.uv = make_float2(intersected_data.uvA.x * w + intersected_data.uvB.x * u + intersected_data.uvC.x * v,
+				intersected_data.uvA.y * w + intersected_data.uvB.y * u + intersected_data.uvC.y * v);
 		}
 #endif
 

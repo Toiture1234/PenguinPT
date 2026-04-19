@@ -4,7 +4,9 @@ namespace penguinPT {
 	class camera {
 	public:
 		nanovdb::Vec3f position = nanovdb::Vec3f(0.f);
-		nanovdb::Vec3f angles = nanovdb::Vec3f(0.f);
+		nanovdb::Vec3f angles = nanovdb::Vec3f(0.f); // true angle of camera
+        nanovdb::Vec3f last_angles_noPressed;
+        nanovdb::Vec3f last_true_angles;
 
 		float zoom = 1.0f; // TODO : replace with proper fov
         float speed = 1.0f;
@@ -58,13 +60,16 @@ void penguinPT::camera::move(sf::RenderWindow* window, float delta_t, unsigned i
 
     // view changing
     sf::Vector2f mousePosition = window->mapPixelToCoords(sf::Mouse::getPosition(*window));
-    float angleX = (mousePosition.x - window->getSize().x * 0.5) / 180.;
-    float angleY = (window->getSize().y * 0.5 - mousePosition.y) / 180.;
-    if (sf::Mouse::isButtonPressed(sf::Mouse::Middle)) {
-        angles = { angleX, angleY, 0. };
+    float angleX = (mousePosition.x - window->getSize().x * 0.5f) / 180.f;
+    float angleY = (window->getSize().y * 0.5 - mousePosition.y) / 180.f;
+
+    nanovdb::Vec3f angles_relative = { angleX - last_angles_noPressed[0], angleY - last_angles_noPressed[1], 0.f };
+    if (sf::Mouse::isButtonPressed(sf::Mouse::Middle)) { // TODO : check if mouse is in screen rect
+        angles = last_true_angles + angles_relative;
         *frame_index = 0;
-       
-    } 
+        angles[1] = util::clamp(angles[1], -PI * 0.45f, PI * 0.45f);
+    }
+    else last_angles_noPressed = nanovdb::Vec3f(angleX, angleY, 0.f), last_true_angles = angles;
 
     // camera position 
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::P)) std::cout << position[0] << " " << position[1] << " " << position[2] << "\n";

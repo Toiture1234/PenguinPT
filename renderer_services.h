@@ -1,9 +1,12 @@
 #pragma once
 
+#define WINDOW_RES_X 1920
+#define WINDOW_RES_Y 1080
+
 namespace penguinPT {
 	class renderer_services {
 	public:
-		unsigned int width = 1280, height = 720;
+		unsigned int width = WINDOW_RES_X * (2.f / 3.f), height = WINDOW_RES_Y * (2.f / 3.f);
 
 		bool CUDA_CAPABLE_GPU = false;
 
@@ -77,7 +80,11 @@ namespace penguinPT {
 
 		void clean() {
 			if (CUDA_CAPABLE_GPU) {
-				if (scene.num_of_bsdf != 0) CUDA_CHECK(cudaFree(scene.bsdf_list));
+				if (scene.num_of_bsdf != 0) { 
+					// destroy every texture object
+					//for (int i = 0; i < scene.num_of_bsdf; i++) if (scene.bsdf_list[i].use_albedo_tex) CUDA_CHECK(cudaDestroyTextureObject(scene.bsdf_list[i].albedo_tex));
+					CUDA_CHECK(cudaFree(scene.bsdf_list)); 
+				}
 				if (scene.num_of_triangles != 0) CUDA_CHECK(cudaFree(scene.triangles), free(scene.triangle_indicies));
 				if (scene.nodes_used != 0) CUDA_CHECK(cudaFree(scene.nodes));
 				if (scene.num_of_volumes != 0) CUDA_CHECK(cudaFree(scene.volumes));

@@ -198,7 +198,7 @@ namespace penguinPT {
     {
         renderer_services rs;
         rs.check_CUDA_AVAILABLITY();
-        rs.mainCam.speed = 20.f;
+        rs.mainCam.speed = 500.f;
         rs.mainCam.zoom = 1.f;
         rs.mainCam.position = { 0.f, 30.f, 15.f };
         rs.is_rendering = false;
@@ -209,12 +209,15 @@ namespace penguinPT {
         loader::obj_loader loader01;
         loader::nanovdb_loader loader02;
         loader::envmap_loader loader03;
-        loader::usd_scene_loader loader04;
-        loader::BSDF_loader loader05;
+        //loader::usd_scene_loader loader04;
+        //loader::BSDF_loader loader05;
 
-        loader04.load_usd_scene("untitled.usda");
+        texture_manager tex_manager;
+        GUI::text_manager text_manager("assets/fonts/NaturalMono-Regular.ttf");
 
-        loader05.create_new_BSDF("floor", 1.f, nanovdb::Vec3f(0.4f, 0.3f, 0.1f), nanovdb::Vec3f(0.f), nanovdb::Vec3f(0.f), 0.f, 1.5f, 0.f);
+        //loader04.load_usd_scene("untitled.usda");
+        /*
+        loader05.create_new_BSDF("floor", 0.1f, nanovdb::Vec3f(0.4f, 0.3f, 0.1f), nanovdb::Vec3f(0.f), nanovdb::Vec3f(0.f), 0.f, 1.5f, 0.f);
 
         //loader05.create_new_BSDF("gold", 0.1f, nanovdb::Vec3f(0.8f, 0.4f, 0.05f), nanovdb::Vec3f(0.f), nanovdb::Vec3f(1.f), 1.f, 1.47f, 0.f);
         
@@ -223,22 +226,26 @@ namespace penguinPT {
         loader05.BSDF_list.at(loader05.gifn("jade")).scattering = 4.f;
         
         loader05.create_new_BSDF("glass", 0.f, nanovdb::Vec3f(1.f), nanovdb::Vec3f(0.f), nanovdb::Vec3f(0.f), 0.f, 1.5f, 1.f);
-        loader05.create_new_BSDF("white", { 0.6f, 0.6f, 0.6f }, 0.1f);
-                
-        loader01.load_obj("just_a_plane.obj", { 0.f, 0.f, 0.f }, 500.f, loader05.gifn("floor"));
+        loader05.create_new_BSDF("white", { 1.f, 1.f, 1.f }, 0.1f);
+        loader05.create_new_BSDF("red", { 0.6f, 0.05f, 0.01f }, 0.5f);
+        tex_manager.load_texture_GPU("assets/models/textures/WoodPanel.png", loader05.BSDF_list.at(loader05.gifn("red")).albedo_tex);
+        tex_manager.load_texture_GPU("assets/models/textures/WoodPanel.png", loader05.BSDF_list.at(loader05.gifn("white")).albedo_tex);
+            */
+        //loader01.load_obj("just_a_plane.obj", { 0.f, 0.f, 0.f }, 500.f, loader05.gifn("white"));
         //loader01.load_obj("diamond.obj", { 0.f, 0.05f, 50.f }, 10.f, loader05.gifm("glass"));
-        loader01.load_obj("horse_statue.obj", { 0.f, 0.05f, 0.f }, 200.f, loader05.gifn("jade"));
+        //loader01.load_obj("bunny.obj", { 0.f, 0.05f, 0.f }, 50.f);
+        //loader01.load_obj("bunny.obj", { 200.f, 0.05f, 0.f }, 50.f);
         //loader01.load_obj("cube.obj", { 50.f, 15.f, 0.f }, 10.f, loader05.gifn("jade"));
         //loader01.load_obj("ship.obj", { 0.f, 0.f, 0.f }, 10.f, loader05.gifn("white"));
         
         loader01.send_to_scene(rs.scene);
-        loader05.send_to_scene(rs.scene);
+        //loader05.send_to_scene(rs.scene);
         
         rs.scene.build_BVH();
         
         // ENVMAP
-        loader03.load_from_file("assets/hdris/sky_bright.hdr");
-        rs.scene.environnement_map.strength = 0.3f;
+        loader03.load_from_file("assets/hdris/qwantani_noon_2k.hdr");
+        rs.scene.environnement_map.strength = 1.f;
         loader03.send_to_gpu(rs.scene.environnement_map, cudaFilterModeLinear);
 
         //loader02.load_nvdb("volume.nvdb", rs.CUDA_CAPABLE_GPU);
@@ -258,7 +265,7 @@ namespace penguinPT {
        
         rs.send_to_GPU_data();
         
-        sf::RenderWindow window(sf::VideoMode(rs.width, rs.height), "PenguinPT, v0.0");
+        sf::RenderWindow window(sf::VideoMode(WINDOW_RES_X, WINDOW_RES_Y), "PenguinPT, v0.0");
         
         sf::Texture displayTex;
         displayTex.create(rs.width, rs.height);
@@ -266,6 +273,10 @@ namespace penguinPT {
         sf::Sprite diplaySprite(displayTex);
 
         sf::Clock mainClock;
+
+        GUI::text_zone test_text({ 50.f, 50.f }, "txt");
+        test_text.txt_m = &text_manager;
+        test_text.set_string("This is a new text zone\n can be used for whatever you want.");
 
         while (window.isOpen())
         {
@@ -288,13 +299,13 @@ namespace penguinPT {
                 rs.is_rendering = false;
                 rs.frame_index = 0;
             }
-
             if (!rs.is_rendering) rs.frame_index = 0;
 
             renderFrame(rs, &displayTex);
             
             window.clear();
             window.draw(diplaySprite);
+            test_text.draw(&window);
             window.display();
 
             rs.delta_time = mainClock.restart().asSeconds();
@@ -308,6 +319,7 @@ namespace penguinPT {
         loader03.clean();
 
         loader02.clean();
+        tex_manager.clean();
         endCuda(rs);
     }
 }

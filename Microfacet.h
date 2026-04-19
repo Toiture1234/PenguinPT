@@ -16,6 +16,9 @@ namespace penguinPT::Microfacet {
 		__hostdev__ nanovdb::Vec3f sample_wh(Rand_state& rngState) const {
 			return { 0.f, 0.f, 0.f };
 		}
+		__hostdev__ nanovdb::Vec3f sample_wh_host() const {
+			return { 0.f, 0.f, 0.f };
+		}
 
 		__hostdev__ float PDF(const nanovdb::Vec3f& wh, const nanovdb::Vec3f& wo) const {
 			return D(wh) * G1(wo) * fabsf(wh.dot(wo)) / fabsf(util::CosTheta(wo));
@@ -130,5 +133,48 @@ namespace penguinPT::Microfacet {
 		float Rparl = ((etaT * cosThetaI) - (etaI * cosThetaT)) / ((etaT * cosThetaI) + (etaI * cosThetaT));
 		float Rperl = ((etaI * cosThetaI) - (etaT * cosThetaT)) / ((etaI * cosThetaI) + (etaT * cosThetaT));
 		return (Rparl * Rparl + Rperl + Rperl) * 0.5f;
+	}
+
+	class Phong_distribution {
+	public:
+		__hostdev__ Phong_distribution() {}
+		__hostdev__ Phong_distribution(float roughness) { alpha = fmaxf(roughness * roughness, 0.05f); power = 1.f / (alpha * alpha) + 9.f; }
+		__hostdev__ ~Phong_distribution() {}
+
+		__hostdev__ float D(const nanovdb::Vec3f& wh) const;
+		__hostdev__ float PDF(const nanovdb::Vec3f& wh, const nanovdb::Vec3f& wo) const;
+
+		__device__ nanovdb::Vec3f sample_wh(Rand_state& state) const;
+		__host__ nanovdb::Vec3f sample_wh_host() const;
+
+		float alpha;
+		float power;
+	};
+
+	__hostdev__ float Phong_distribution::D(const nanovdb::Vec3f& wh) const {
+		return (power + 2.f) * INV_TWO_PI * powf(wh[2], power);
+	}
+	__hostdev__ float Phong_distribution::PDF(const nanovdb::Vec3f& wh, const nanovdb::Vec3f& wo) const {
+		return (power + 1.f) * INV_TWO_PI * powf(wh[2], power);
+	}
+	__device__ nanovdb::Vec3f Phong_distribution::sample_wh(Rand_state& state) const {
+		float u1 = randC(&state), u2 = randC(&state);
+
+		float cos_theta = powf(u1, 1.f / (1.f + power));
+		float sin_theta = sqrtf(fmaxf(0.f, 1.f - cos_theta * cos_theta));
+
+		float phi = TWO_PI * u2;
+
+		return nanovdb::Vec3f(sin_theta * cosf(phi), sin_theta * sinf(phi), cos_theta);
+	}
+	__host__ nanovdb::Vec3f Phong_distribution::sample_wh_host() const {
+		float u1 = rand01, u2 = rand01;
+
+		float cos_theta = powf(u1, 1.f / (1.f + power));
+		float sin_theta = sqrtf(fmaxf(0.f, 1.f - cos_theta * cos_theta));
+
+		float phi = TWO_PI * u2;
+
+		return nanovdb::Vec3f(sin_theta * cosf(phi), sin_theta * sinf(phi), cos_theta);
 	}
 }

@@ -25,13 +25,20 @@ namespace penguinPT {
 		bool is_through;
 		bool change_medium;
 
+		// texture (albedo only)
+		cudaTextureObject_t albedo_tex = 0;
+		bool use_albedo_tex = false;
+
+		cudaTextureObject_t roughness_tex = 0;
+		bool use_roughness_tex = false;
+
 		__hostdev__ principled_BSDF() : roughness(0.f), anisotropy(0.), metalness(0.), ior(1.5f), g(0.f), opacity(0.f), albedo(0.f), emission(0.f), absorption(0.f), is_through(false), transparency(0.f), scattering(0.f), change_medium(true) {}
 		__hostdev__ ~principled_BSDF() {}
 
-		__hostdev__ nanovdb::Vec3f eval(nanovdb::Vec3f wo, nanovdb::Vec3f wi, nanovdb::Vec3f N, float& pdf, float eta) const;
+		__hostdev__ nanovdb::Vec3f eval(nanovdb::Vec3f wo, nanovdb::Vec3f wi, nanovdb::Vec3f N, float& pdf, float eta, float2 uv) const;
 
-		__device__ nanovdb::Vec3f sample_CUDA(nanovdb::Vec3f wo, nanovdb::Vec3f& wi, nanovdb::Vec3f N, float& pdf, Rand_state& rng_state, bool& through, bool& isInside) const;
-		__host__ nanovdb::Vec3f sample_HOST(nanovdb::Vec3f wo, nanovdb::Vec3f& wi, nanovdb::Vec3f N, float& pdf, Rand_state& rng_state, bool& through, bool& isInside) const;
+		__device__ nanovdb::Vec3f sample_CUDA(nanovdb::Vec3f wo, nanovdb::Vec3f& wi, nanovdb::Vec3f N, float& pdf, Rand_state& rng_state, bool& through, bool& isInside, float2 uv) const;
+		__host__ nanovdb::Vec3f sample_HOST(nanovdb::Vec3f wo, nanovdb::Vec3f& wi, nanovdb::Vec3f N, float& pdf, Rand_state& rng_state, bool& through, bool& isInside, float2 uv) const;
 		bool __hostdev__ operator==(const principled_BSDF&);
 	};
 	bool __hostdev__ principled_BSDF::operator==(const principled_BSDF& other) {
@@ -75,7 +82,7 @@ namespace penguinPT {
 
 		return (sin_alpha * cosf(phi) * T + sin_alpha * sinf(phi) * B + cos_alpha * wi_perfect).normalize();
 	}
-	__hostdev__ nanovdb::Vec3f principled_BSDF::eval(nanovdb::Vec3f wo, nanovdb::Vec3f wi, nanovdb::Vec3f N, float& pdf, float eta) const {
+	__hostdev__ nanovdb::Vec3f principled_BSDF::eval(nanovdb::Vec3f wo, nanovdb::Vec3f wi, nanovdb::Vec3f N, float& pdf, float eta, float2 uv) const {
 		if (is_through) {
 			float k = wo.dot(wi);
 			//pdf = k >= 0.999f ? 1.f : 0.f; // bro this isn't good at all
@@ -95,13 +102,11 @@ namespace penguinPT {
 
 		if (wh[2] < 0.f) wh *= -1.f;
 
-		float aspect = sqrtf(1.f - 0.9f * anisotropy);
-		float ax = Microfacet::Beckmann_distribution::roughness_to_alpha(roughness * roughness * aspect);
-		float ay = Microfacet::Beckmann_distribution::roughness_to_alpha(roughness * roughness / aspect);
-		Microfacet::Beckmann_distribution distribution(ax, ay);
+		Microfacet::Phong_distribution distribution(roughness);
 
 		// models weight
-		float f0 = 0.2f;
+		//float f0 = 0.2f;
+		float f0 = (ior - 1.f) * (ior - 1.f) / ((ior + 1.f) * (ior + 1.f));
 		float f90 = 1.f;
 
 		float schlickWt = util::SchlickWeight(wo[2]);
@@ -127,7 +132,7 @@ namespace penguinPT {
 
 		if (diffuse_pr > 0.f && reflect) {
 			float diff_pdf = INV_PI * fabsf(util::CosTheta(wi));
-			nanovdb::Vec3f diffuse = albedo * INV_PI * fabsf(util::CosTheta(wi));
+			nanovdb::Vec3f diffuse = (1.f - f0) * albedo / PI;
 
 			L += diffuse * dielectric_W;
 			pdf += diff_pdf * diffuse_pr;
@@ -171,10 +176,10 @@ namespace penguinPT {
 			}
 		}
 
-		return L /* fabsf(wi[2])*/;
+		return L * fabsf(wi[2]);
 	}
 
-	__device__ nanovdb::Vec3f principled_BSDF::sample_CUDA(nanovdb::Vec3f wo, nanovdb::Vec3f& wi, nanovdb::Vec3f N, float& pdf, Rand_state& rng_state, bool& through, bool& isInside) const {
+	__device__ nanovdb::Vec3f principled_BSDF::sample_CUDA(nanovdb::Vec3f wo, nanovdb::Vec3f& wi, nanovdb::Vec3f N, float& pdf, Rand_state& rng_state, bool& through, bool& isInside, float2 uv) const {
 		if (is_through) {
 			wi = -wo;
 			//pdf = 1.f;
@@ -194,13 +199,10 @@ namespace penguinPT {
 		wo = util::ToLocal(T, B, N, wo), wi = util::ToLocal(T, B, N, wi);
 		nanovdb::Vec3f wh = (wo + wi).normalize();
 
-		float aspect = sqrtf(1.f - 0.9f * anisotropy);
-		float ax = Microfacet::Beckmann_distribution::roughness_to_alpha(roughness * roughness * aspect);
-		float ay = Microfacet::Beckmann_distribution::roughness_to_alpha(roughness * roughness / aspect);
-		Microfacet::Beckmann_distribution distribution(ax, ay);
+		Microfacet::Phong_distribution distribution(roughness);
 
 		// models weight
-		float f0 = 0.2f;
+		float f0 = (ior - 1.f) * (ior - 1.f) / ((ior + 1.f) * (ior + 1.f));
 		float f90 = 1.f;
 
 		float schlickWt = util::SchlickWeight(wo[2]);
@@ -263,9 +265,9 @@ namespace penguinPT {
 		wo = util::ToWorld(T, B, N, wo);
 		wi = util::ToWorld(T, B, N, wi);
 
-		return eval(wo, wi, N, pdf, eta);
+		return eval(wo, wi, N, pdf, eta, uv);
 	}
-	__host__ nanovdb::Vec3f principled_BSDF::sample_HOST(nanovdb::Vec3f wo, nanovdb::Vec3f& wi, nanovdb::Vec3f N, float& pdf, Rand_state& rng_state, bool& through, bool& isInside) const {
+	__host__ nanovdb::Vec3f principled_BSDF::sample_HOST(nanovdb::Vec3f wo, nanovdb::Vec3f& wi, nanovdb::Vec3f N, float& pdf, Rand_state& rng_state, bool& through, bool& isInside, float2 uv) const {
 		if (is_through) {
 			wi = -wo;
 			//pdf = 1.f;
@@ -285,13 +287,10 @@ namespace penguinPT {
 		wo = util::ToLocal(T, B, N, wo), wi = util::ToLocal(T, B, N, wi);
 		nanovdb::Vec3f wh = (wo + wi).normalize();
 
-		float aspect = sqrtf(1.f - 0.9f * anisotropy);
-		float ax = Microfacet::Beckmann_distribution::roughness_to_alpha(roughness * roughness * aspect);
-		float ay = Microfacet::Beckmann_distribution::roughness_to_alpha(roughness * roughness / aspect);
-		Microfacet::Beckmann_distribution distribution(ax, ay);
+		Microfacet::Phong_distribution distribution(roughness);
 
 		// models weight
-		float f0 = 0.2f;
+		float f0 = (ior - 1.f) * (ior - 1.f) / ((ior + 1.f) * (ior + 1.f));
 		float f90 = 1.f;
 
 		float schlickWt = util::SchlickWeight(wo[2]);
@@ -353,6 +352,6 @@ namespace penguinPT {
 		wo = util::ToWorld(T, B, N, wo);
 		wi = util::ToWorld(T, B, N, wi);
 
-		return eval(wo, wi, N, pdf, eta);
+		return eval(wo, wi, N, pdf, eta, uv);
 	}
 }

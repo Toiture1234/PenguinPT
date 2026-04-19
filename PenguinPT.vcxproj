@@ -27,6 +27,7 @@
     <ClInclude Include="CPU_texture.h" />
     <ClInclude Include="direct_lightning.h" />
     <ClInclude Include="envmap.h" />
+    <ClInclude Include="GUI.h" />
     <ClInclude Include="hdr_loader.h" />
     <ClInclude Include="integrators.h" />
     <ClInclude Include="intersectors.h" />
@@ -37,6 +38,7 @@
     <ClInclude Include="pathtracer.h" />
     <ClInclude Include="phase_function.h" />
     <ClInclude Include="renderer_services.h" />
+    <ClInclude Include="texture_manager.h" />
     <ClInclude Include="Utility.h" />
     <ClInclude Include="volumes.h" />
     <ClInclude Include="usd_scene_loader.h" />

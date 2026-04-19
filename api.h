@@ -27,8 +27,12 @@
 #define VOLUME_STACK_SIZE 16
 #define DIRECT_LIGHT_STEPS 16
 
+// debug things
+//#define WHITE_FURNACE
+//#define SEE_NORMALS
+
 // still need to figure out why it's not working well on CPU
-//#define DIRECT_LIGHTNING
+#define DIRECT_LIGHTNING
 //#define EXPERIMENTAL_CAUSTICS
 
 #include "cuda_runtime.h"
@@ -87,6 +91,8 @@ typedef curandStatePhilox4_32_10_t Rand_state;
 #include "direct_lightning.h"
 #include "integrators.h"
 #include "pathtracer.h"
+#include "texture_manager.h"
 #include "obj_loader.h"
 #include "nanovdb_loader.h"
 #include "usd_scene_loader.h"
+#include "GUI.h"
