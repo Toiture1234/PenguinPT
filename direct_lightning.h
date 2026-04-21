@@ -43,8 +43,10 @@ namespace penguinPT {
 #else 
 			// solid hit
 			principled_BSDF& surface_bsdf = rs.scene.bsdf_list[info.BSDF_index];
-			if (surface_bsdf.transparency < 0.05f) return 0.f;
-			T *= surface_bsdf.transparency;
+			if (!surface_bsdf.is_through) {
+				if (surface_bsdf.transparency < 0.05f) return 0.f;
+				T *= surface_bsdf.transparency;
+			}
 
 			// account for volumes transmittance
 			T *= ratio_tracking_spectral_device(rs, ray, info.t, info.nb_vol, info.all_volumes, channel);
@@ -96,8 +98,10 @@ namespace penguinPT {
 #else 
 			// solid hit
 			principled_BSDF& surface_bsdf = rs.scene.bsdf_list[info.BSDF_index];
-			if (surface_bsdf.transparency < 0.05f) return 0.f;
-			T *= surface_bsdf.transparency;
+			if (!surface_bsdf.is_through) {
+				if (surface_bsdf.transparency < 0.05f) return 0.f;
+				T *= surface_bsdf.transparency;
+			}
 
 			// account for volumes transmittance
 			T *= ratio_tracking_spectral_host(rs, ray, info.t, info.nb_vol, info.all_volumes, channel);
