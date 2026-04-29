@@ -188,7 +188,7 @@ namespace penguinPT::GUI {
 		void add_text_zone(text_zone r);
 		void add_rect_shape(rect_shape r);
 
-		void apply_tex_manager(text_manager* src);
+		void apply_text_manager(text_manager* src);
 
 		void draw_GUI(sf::RenderWindow* target);
 
@@ -341,7 +341,7 @@ namespace penguinPT::GUI {
 	}
 
 	/////////////////////////////////////// GUI functions ///////////////////////////////////////
-	void GUI_manager::apply_tex_manager(text_manager* src) {
+	void GUI_manager::apply_text_manager(text_manager* src) {
 		txt_ptr = src;
 	}
 	void GUI_manager::draw_GUI(sf::RenderWindow* target) {

@@ -43,10 +43,9 @@ namespace penguinPT {
 #else 
 			// solid hit
 			principled_BSDF& surface_bsdf = rs.scene.bsdf_list[info.BSDF_index];
-			if (!surface_bsdf.is_through) {
-				if (surface_bsdf.transparency < 0.05f) return 0.f;
-				T *= surface_bsdf.transparency;
-			}
+			float mult = surface_bsdf.getAlbedo_textured_CUDA(info.uv)[3];
+			if (mult < 0.05f) return 0.f;
+			T *= mult;
 
 			// account for volumes transmittance
 			T *= ratio_tracking_spectral_device(rs, ray, info.t, info.nb_vol, info.all_volumes, channel);
@@ -98,10 +97,9 @@ namespace penguinPT {
 #else 
 			// solid hit
 			principled_BSDF& surface_bsdf = rs.scene.bsdf_list[info.BSDF_index];
-			if (!surface_bsdf.is_through) {
-				if (surface_bsdf.transparency < 0.05f) return 0.f;
-				T *= surface_bsdf.transparency;
-			}
+			float mult = surface_bsdf.getAlbedo_textured_HOST(info.uv)[3];
+			if (mult < 0.05f) return 0.f;
+			T *= mult;
 
 			// account for volumes transmittance
 			T *= ratio_tracking_spectral_host(rs, ray, info.t, info.nb_vol, info.all_volumes, channel);
@@ -130,7 +128,7 @@ namespace penguinPT {
 		float T = 1.f;
 
 		for (int i = 0; i < DT_SAMPLES; i++) {
-			t -= logf(randC(&rs.rng_state)) * inv_sigma_t;
+			t -= logf(1.f - randC(&rs.rng_state)) * inv_sigma_t;
 
 			if (t > t_max) return T;
 
@@ -158,7 +156,7 @@ namespace penguinPT {
 		float T = 1.f;
 
 		for (int i = 0; i < DT_SAMPLES; i++) {
-			t -= logf(rand01) * inv_sigma_t;
+			t -= logf(1.f - rand01) * inv_sigma_t;
 
 			if (t > t_max) return T;
 

@@ -59,7 +59,7 @@ namespace penguinPT {
 				std::cin >> device_choice;
 
 				if (device_choice >= GPU_count) {
-					std::cout << "Invalid device ordinal, swiching to CPU render mode.\n";
+					std::cout << "Invalid device ordinal, swiching to CPU render mode, please expect low performance.\n";
 					CUDA_CAPABLE_GPU = false;
 				}
 				else

@@ -5,7 +5,7 @@ namespace penguinPT::loader {
 	public:
 
 		BSDF_loader() {
-			principled_BSDF zero; zero.is_through = true; BSDF_list.push_back(zero); BSDF_name.push_back("zero");
+			principled_BSDF zero; zero.alpha = 0.f; BSDF_list.push_back(zero); BSDF_name.push_back("zero");
 
 			principled_BSDF base_BSDF; BSDF_list.push_back(base_BSDF); BSDF_name.push_back("base_BSDF");
 		}
@@ -44,39 +44,114 @@ namespace penguinPT::loader {
 
 		unsigned int triangles_num = 0;
 
-		bool load_obj(std::string path, nanovdb::Vec3f position, float scale, unsigned int BSDF_id = BASE_BSDF);
-		bool load_mtl(std::string path);
+		bool load_obj(std::string path, nanovdb::Vec3f position, float scale, unsigned int BSDF_id = BASE_BSDF, bool useGPU = true);
+		bool load_mtl(std::string path, bool useGPU = true);
 		void send_to_scene(Scene_data& scene);
+
+		void set_texture_manager(texture_manager* src) { texture_m_ptr = src; }
+
+	private:
+		texture_manager* texture_m_ptr;
 	};
 
-	bool obj_loader::load_mtl(std::string path) {
+	bool obj_loader::load_mtl(std::string path, bool useGPU) {
 		std::ifstream file("assets/models/" + path);
 
 		if (file.is_open()) {
 			std::string line;
+
+			bool apply_definition = false;
 			while (std::getline(file, line)) {
 				std::vector<std::string> tokens = file_util::get_line_tokens(line, { ' ' });
 				
 				if (!tokens.empty()) {
 					if (tokens.at(0) == "newmtl") {
-						bsdf_loader.create_new_BSDF(tokens.at(1), nanovdb::Vec3f(0.f), 0.f);
+						int i;
+						if (!file_util::is_word_in_list(tokens.at(1), bsdf_loader.BSDF_name, i)) {
+							bsdf_loader.create_new_BSDF(tokens.at(1), nanovdb::Vec3f(0.f), 0.f);
+							apply_definition = true;
+						}
+						else {
+							apply_definition = false;
+						}
 					}
 					else if (tokens.at(0) == "Kd") {
-						nanovdb::Vec3f& a = bsdf_loader.BSDF_list.back().albedo;
-						sscanf((tokens.at(1) + tokens.at(2) + tokens.at(3)).c_str(), "%f %f %f", &a[0], &a[1], &a[2]);
+						if (apply_definition) {
+							nanovdb::Vec3f& a = bsdf_loader.BSDF_list.back().albedo;
+							sscanf((tokens.at(1) + tokens.at(2) + tokens.at(3)).c_str(), "%f %f %f", &a[0], &a[1], &a[2]);
+						}
 					}
 					else if (tokens.at(0) == "Ke") {
-						nanovdb::Vec3f& a = bsdf_loader.BSDF_list.back().emission;
-						sscanf((tokens.at(1) + tokens.at(2) + tokens.at(3)).c_str(), "%f %f %f", &a[0], &a[1], &a[2]);
+						if (apply_definition) {
+							nanovdb::Vec3f& a = bsdf_loader.BSDF_list.back().emission;
+							sscanf((tokens.at(1) + tokens.at(2) + tokens.at(3)).c_str(), "%f %f %f", &a[0], &a[1], &a[2]);
+						}
 					}
 					else if (tokens.at(0) == "Ni") {
-						float& a = bsdf_loader.BSDF_list.back().ior;
-						sscanf(tokens.at(1).c_str(), "%f", &a);
+						if (apply_definition) {
+							float& a = bsdf_loader.BSDF_list.back().ior;
+							sscanf(tokens.at(1).c_str(), "%f", &a);
+						}
 					}
 					else if (tokens.at(0) == "Pr") {
-						float& a = bsdf_loader.BSDF_list.back().roughness;
-						sscanf(tokens.at(1).c_str(), "%f", &a);
+						if (apply_definition) {
+							float& a = bsdf_loader.BSDF_list.back().roughness;
+							sscanf(tokens.at(1).c_str(), "%f", &a);
+						}
 					}
+					else if (tokens.at(0) == "d") {
+						if (apply_definition) {
+							float& a = bsdf_loader.BSDF_list.back().transparency;
+							sscanf(tokens.at(1).c_str(), "%f", &a);
+							a = 1.f - a;
+						}
+					}
+					else if (tokens.at(0) == "map_Kd") {
+						if (apply_definition) {
+							
+							if (useGPU) {
+								cudaTextureObject_t& a = bsdf_loader.BSDF_list.back().albedo_tex_CUDA;
+
+								texture_m_ptr->load_texture_GPU_float4("assets/models/" + tokens.at(1), a);
+							}
+							else {
+								CPU_float4_texture& a = bsdf_loader.BSDF_list.back().albedo_tex_HOST;
+
+								texture_m_ptr->load_texture_CPU_float4("assets/models/" + tokens.at(1), a);
+							}
+							bsdf_loader.BSDF_list.back().use_albedo_tex = true;
+						}
+					}
+					else if (tokens.at(0) == "map_Pr") {
+						if (apply_definition) {
+							if (useGPU) {
+								cudaTextureObject_t& a = bsdf_loader.BSDF_list.back().roughness_tex_CUDA;
+
+								texture_m_ptr->load_texture_GPU_float("assets/models/" + tokens.at(1), a);
+							}
+							else {
+								CPU_float_texture& a = bsdf_loader.BSDF_list.back().roughness_tex_HOST;
+
+								texture_m_ptr->load_texture_CPU_float("assets/models/" + tokens.at(1), a);
+							}
+							bsdf_loader.BSDF_list.back().use_roughness_tex = true;
+						}
+					}
+					/*else if (tokens.at(0) == "map_Bump") {
+						if (apply_definition) {
+							if (useGPU) {
+								cudaTextureObject_t& a = bsdf_loader.BSDF_list.back().normal_tex_CUDA;
+
+								texture_m_ptr->load_texture_GPU_float4("assets/models/" + tokens.at(3), a);
+							}
+							else {
+								CPU_float4_texture& a = bsdf_loader.BSDF_list.back().normal_tex_HOST;
+
+								texture_m_ptr->load_texture_CPU_float4("assets/models/" + tokens.at(3), a);
+							}
+							bsdf_loader.BSDF_list.back().use_normal_tex = true;
+						}
+					}*/
 				}
 				
 			}
@@ -86,7 +161,7 @@ namespace penguinPT::loader {
 		return true;
 	}
 
-	bool obj_loader::load_obj(std::string path, nanovdb::Vec3f position, float scale, unsigned int BSDF_id) {
+	bool obj_loader::load_obj(std::string path, nanovdb::Vec3f position, float scale, unsigned int BSDF_id, bool useGPU) {
 
 		bool normals = false;
 		bool uvs = false;
@@ -121,7 +196,7 @@ namespace penguinPT::loader {
 						uvs = true;
 					}
 					else if (tokens.at(0) == "mtllib") {
-						mtl_file = load_mtl(tokens.at(1));
+						mtl_file = load_mtl(tokens.at(1), useGPU);
 					}
 					else if (tokens.at(0) == "usemtl" && mtl_file) {
 						// choose material

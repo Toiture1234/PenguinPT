@@ -37,12 +37,12 @@ namespace penguinPT {
 			float sum;
 
 			__hostdev__ envmap_loader() : data(nullptr), width(0), height(0), sum(0.f), cdf(nullptr) {}
-			__hostdev__ ~envmap_loader() {
-				free(data);
-				free(cdf);
-			}
+			__hostdev__ ~envmap_loader() {}
 
 			bool load_from_file(std::string path);
+
+			// This function isn't really only sending data to GPU but also sets CPU data,
+			// so it needs to be called even if the GPU is not used.
 			bool send_to_gpu(Envmap& source, cudaTextureFilterMode filter);
 			void build_CDF();
 
@@ -98,6 +98,8 @@ void penguinPT::loader::envmap_loader::build_CDF() {
 void penguinPT::loader::envmap_loader::clean() {
 	CUDA_CHECK(cudaFreeArray(data_cuda));
 	CUDA_CHECK(cudaFreeArray(data_cuda_cdf));
+	free(data);
+	free(cdf);
 }
 bool penguinPT::loader::envmap_loader::send_to_gpu(Envmap& source, cudaTextureFilterMode filter) {
 	source.width = this->width;
@@ -197,7 +199,7 @@ __device__ inline float2 penguinPT::Envmap::binarySearch(float xi) {
 			lower = mid + 1;
 		}
 	}
-	int y = lower;//(int)util::clamp(lower, 0, this->height - 1);
+	int y = lower;
 
 	lower = 0;
 	upper = this->width - 1;
@@ -256,7 +258,7 @@ __host__ inline float2 penguinPT::Envmap::binarySearch_host(float xi) {
 			lower = mid + 1;
 		}
 	}
-	int y = lower;//(int)util::clamp(lower, 0, this->height - 1);
+	int y = lower;;
 
 	lower = 0;
 	upper = this->width - 1;
@@ -269,9 +271,8 @@ __host__ inline float2 penguinPT::Envmap::binarySearch_host(float xi) {
 			lower = mid + 1;
 		}
 	}
-	int x = lower;// (int)util::clamp(lower, 0, this->width - 1);
+	int x = lower;
 	return make_float2((float)x / (float)this->width, (float)y / (float)this->height);
-
 }
 
 __host__ inline nanovdb::Vec3f penguinPT::Envmap::sample_envmap_host(nanovdb::Vec3f& L, float& pdf, Rand_state& state) {

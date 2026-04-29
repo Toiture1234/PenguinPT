@@ -175,7 +175,7 @@ namespace penguinPT::integrators {
 		//throughput = nanovdb::Vec3f(1.f);
 
 		for (int i = 0; i < DT_SAMPLES; i++) {
-			t -= logf(randC(&rs.rng_state)) * inv_sigma_T;
+			t -= logf(1.f - randC(&rs.rng_state)) * inv_sigma_T;
 
 			if (t > t_out) return false;
 
@@ -216,7 +216,7 @@ namespace penguinPT::integrators {
 		//throughput = nanovdb::Vec3f(1.f);
 
 		for (int i = 0; i < DT_SAMPLES; i++) {
-			t -= logf(rand01) * inv_sigma_T;
+			t -= logf(1.f - rand01) * inv_sigma_T;
 
 			if (t > t_out) return false;
 

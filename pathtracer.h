@@ -25,9 +25,6 @@ namespace penguinPT {
 			bool hit = rs.scene.intersectScene_full(ray, info);
 			bool through = false;
 
-			// fix normal
-			info.normal = util::refIfNeg(info.normal, -ray.dir());
-
 			if (!hit) {
 #ifdef WHITE_FURNACE
 				L[channel] += 1.f * throughput;
@@ -131,41 +128,59 @@ namespace penguinPT {
 			}
 			else if (!sss_scatter && !volume_scatter)
 			{
-				// account for attenuation
-				if (isInside) throughput *= util::exp3f(-info.t * attenuation)[channel];
 
 				principled_BSDF& surface_bsdf = rs.scene.bsdf_list[info.BSDF_index];
 
+				// normal modification
+				nanovdb::Vec3f T, B;
+				util::Onb(info.normal, T, B);
+				info.normal = util::ToWorld(T, B, info.normal, surface_bsdf.getNormal_textured_CUDA(info.uv) * 2.f - nanovdb::Vec3f(1.f));
+
+				// fix normal
+				info.normal = util::refIfNeg(info.normal, -ray.dir());
+
+				// account for attenuation
+				if (isInside) throughput *= util::exp3f(-info.t * attenuation)[channel];
+
+				nanovdb::Vec3f L_dir;
+				bool does_scatter;
+				bsdf_value = surface_bsdf.sample_CUDA(-ray.dir(), L_dir, info.normal, scatterPDF, rs.rng_state, through, isInside, does_scatter, info.uv);
+
+				if (does_scatter) {
 #if defined(DIRECT_LIGHTNING) && !defined(WHITE_FURNACE)
-				if (!surface_bsdf.is_through) {
+
 					nanovdb::Vec3f envmap_dir;
 					float envmap_pdf;
 
 					nanovdb::Vec3f envmap_value = rs.scene.environnement_map.sample_envmap(envmap_dir, envmap_pdf, rs.rng_state);
 
-					float bsdf_pdf = 1.f;
+					float bsdf_pdf = INV_4_PI;
 					float eta = isInside ? surface_bsdf.ior : 1.f / surface_bsdf.ior;
-					nanovdb::Vec3f bsdf_value_envmap = surface_bsdf.eval(-ray.dir(), envmap_dir, info.normal, bsdf_pdf, eta, info.uv);
+					nanovdb::Vec3f bsdf_value_envmap = surface_bsdf.eval_CUDA(-ray.dir(), envmap_dir, info.normal, bsdf_pdf, info.uv, eta);
 
-					float visibility = direct_visibility_device(rs, nanovdb::math::Ray<float>(ray(info.t), envmap_dir), isInside, attenuation, scattering_sss, channel);
+					nanovdb::Vec3f sun_ray_position = ray(t_max) + info.normal * SAFE_OFFSET;
+					float visibility = direct_visibility_device(rs, nanovdb::math::Ray<float>(sun_ray_position, envmap_dir), isInside, attenuation, scattering_sss, channel);
 
 					if (envmap_pdf > 0.f) {
 						float misWeight = util::powerHeuristic(envmap_pdf, bsdf_pdf);
 						if (misWeight > 0.f)
 							L[channel] += (envmap_value * bsdf_value_envmap)[channel] * visibility * throughput / envmap_pdf * misWeight;
 					}
-				}
+
 #endif
 
-				nanovdb::Vec3f L_dir;
-				bsdf_value = surface_bsdf.sample_CUDA(-ray.dir(), L_dir, info.normal, scatterPDF, rs.rng_state, through, isInside, info.uv);
-				
-				L[channel] += surface_bsdf.emission[channel] * throughput;
+					L[channel] += surface_bsdf.emission[channel] * throughput;
 
-				ray.reset(ray(t_max), L_dir);
-				surface_scatter = true;
+					surface_scatter = true;
+
+					if (through) attenuation = surface_bsdf.absorption, scattering_sss = surface_bsdf.scattering, sss_g = surface_bsdf.g;
+
+					ray.reset(ray(t_max), L_dir);
+				}
+				else {
+					ray.setEye(ray(t_max));
+				}
 				
-				if (through) attenuation = surface_bsdf.absorption, scattering_sss = surface_bsdf.scattering, sss_g = surface_bsdf.g;
 			}
 
 			if (scatterPDF > 0.0001f) throughput *= util::clamp(bsdf_value[channel] / scatterPDF, 0.f, 1.f);
@@ -204,9 +219,6 @@ namespace penguinPT {
 
 			bool hit = rs.scene.intersectScene_full(ray, info);
 			bool through = false;
-
-			// fix normal
-			info.normal = util::refIfNeg(info.normal, -ray.dir());
 
 			if (!hit) {
 #ifdef WHITE_FURNACE
@@ -308,13 +320,25 @@ namespace penguinPT {
 			}
 			else if (!sss_scatter && !volume_scatter)
 			{
+				principled_BSDF& surface_bsdf = rs.scene.bsdf_list[info.BSDF_index];
+
+				// normal modification
+				nanovdb::Vec3f T, B;
+				util::Onb(info.normal, T, B);
+				info.normal = util::ToWorld(T, B, info.normal, surface_bsdf.getNormal_textured_HOST(info.uv) * 2.f - nanovdb::Vec3f(1.f));
+
+				// fix normal
+				info.normal = util::refIfNeg(info.normal, -ray.dir());
+
 				// account for attenuation
 				if (isInside) throughput *= util::exp3f(-info.t * attenuation)[channel];
 
-				principled_BSDF& surface_bsdf = rs.scene.bsdf_list[info.BSDF_index];
+				nanovdb::Vec3f L_dir;
+				bool does_scatter;
+				bsdf_value = surface_bsdf.sample_HOST(-ray.dir(), L_dir, info.normal, scatterPDF, rs.rng_state, through, isInside, does_scatter, info.uv);
 
+				if(does_scatter) {
 #if defined(DIRECT_LIGHTNING) && !defined(WHITE_FURNACE)
-				if (!surface_bsdf.is_through) {
 					nanovdb::Vec3f envmap_dir;
 					float envmap_pdf;
 
@@ -322,26 +346,31 @@ namespace penguinPT {
 
 					float bsdf_pdf = 1.f;
 					float eta = isInside ? surface_bsdf.ior : 1.f / surface_bsdf.ior;
-					nanovdb::Vec3f bsdf_value_envmap = surface_bsdf.eval(-ray.dir(), envmap_dir, info.normal, bsdf_pdf, eta, info.uv);
+					nanovdb::Vec3f bsdf_value_envmap = surface_bsdf.eval_HOST(-ray.dir(), envmap_dir, info.normal, bsdf_pdf, info.uv, eta);
 
-					float visibility = direct_visibility_host(rs, nanovdb::math::Ray<float>(ray(info.t), envmap_dir), isInside, attenuation, scattering_sss, channel);
+					nanovdb::Vec3f sun_ray_position = ray(t_max) + info.normal * SAFE_OFFSET;
+					float visibility = direct_visibility_host(rs, nanovdb::math::Ray<float>(sun_ray_position, envmap_dir), isInside, attenuation, scattering_sss, channel);
 
 					if (envmap_pdf > 0.f) {
 						float misWeight = util::powerHeuristic(envmap_pdf, bsdf_pdf);
 						if (misWeight > 0.f)
 							L[channel] += (envmap_value * bsdf_value_envmap)[channel] * visibility * throughput / envmap_pdf * misWeight;
 					}
-				}
+					
 #endif
 
-				nanovdb::Vec3f L_dir;
-				bsdf_value = surface_bsdf.sample_HOST(-ray.dir(), L_dir, info.normal, scatterPDF, rs.rng_state, through, isInside, info.uv);
-				L[channel] += surface_bsdf.emission[channel] * throughput;
+					L[channel] += surface_bsdf.emission[channel] * throughput;
 
-				surface_scatter = true;
-				ray.reset(ray(info.t), L_dir);
+					surface_scatter = true;
 
-				if (through) attenuation = surface_bsdf.absorption, scattering_sss = surface_bsdf.scattering, sss_g = surface_bsdf.g;
+					if (through) attenuation = surface_bsdf.absorption, scattering_sss = surface_bsdf.scattering, sss_g = surface_bsdf.g;
+
+					ray.reset(ray(t_max), L_dir);
+				}
+				else {
+					ray.setEye(ray(t_max));
+				}
+				
 			}
 
 			if (scatterPDF > 0.0001f) throughput *= util::clamp(bsdf_value[channel] / scatterPDF, 0.f, 1.f);

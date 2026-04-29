@@ -34,7 +34,13 @@ namespace penguinPT {
         if(rs.is_rendering)
             return volume_pathtrace_device_spectral(rs, ray);
         if (rs.scene.intersectScene_full(ray, info)) {
-            return info.normal.dot(-ray.dir()) * rs.scene.bsdf_list[info.BSDF_index].albedo;
+            //return info.normal.dot(-ray.dir()) * rs.scene.bsdf_list[info.BSDF_index].albedo;
+            principled_BSDF& surface_bsdf = rs.scene.bsdf_list[info.BSDF_index];
+
+            // normal modification
+            nanovdb::Vec3f T, B;
+            util::Onb(info.normal, T, B);
+            return util::ToWorld(T, B, info.normal, surface_bsdf.getNormal_textured_CUDA(info.uv) * 2.f - nanovdb::Vec3f(1.f));
         }
         float pdf_e;
         return (rs.scene.environnement_map.eval_envmap(ray.dir(), pdf_e));
@@ -216,10 +222,12 @@ namespace penguinPT {
 
         texture_manager tex_manager;
 
+        loader01.set_texture_manager(&tex_manager);
+
         /////////////////////////////////////// GUI ///////////////////////////////////////
         GUI::text_manager text_manager("assets/GUI/NaturalMono-Regular.ttf");
         GUI::GUI_manager main_GUI_manager;
-        main_GUI_manager.apply_tex_manager(&text_manager);
+        main_GUI_manager.apply_text_manager(&text_manager);
 
         // add rect_shape
         main_GUI_manager.add_rect_shape({ sf::Vector2f(0.f, 0.f),
@@ -255,7 +263,7 @@ namespace penguinPT {
         main_GUI_manager.find_slider("camera:speed").min_bounds = 1.f;
         main_GUI_manager.find_slider("camera:speed").max_bounds = 500.f;
         main_GUI_manager.find_slider("camera:speed").slider_percentage = 0.1f;
-        main_GUI_manager.find_slider("camera:speed").interpolation_value = 0.f;
+        main_GUI_manager.find_slider("camera:speed").interpolation_value = 0.1f;
 
         // camera zoom
         main_GUI_manager.add_text_zone(GUI::text_zone(main_GUI_manager.on_follow_slider("camera:speed", 'Y'), "camera:zoom:title"));
@@ -297,10 +305,12 @@ namespace penguinPT {
         tex_manager.load_texture_GPU("assets/models/textures/WoodPanel.png", loader05.BSDF_list.at(loader05.gifn("red")).albedo_tex);
         tex_manager.load_texture_GPU("assets/models/textures/WoodPanel.png", loader05.BSDF_list.at(loader05.gifn("white")).albedo_tex);
             */
+
         //loader01.load_obj("just_a_plane.obj", { 0.f, 0.f, 0.f }, 500.f);
         //loader01.load_obj("diamond.obj", { 0.f, 0.05f, 50.f }, 10.f, loader05.gifm("glass"));
         //loader01.load_obj("bunny.obj", { 0.f, 0.05f, 0.f }, 50.f);
-        //loader01.load_obj("bunny.obj", { 200.f, 0.05f, 0.f }, 50.f);
+        loader01.load_obj("chess_moved.obj", { 0.f, 0.f, 0.f }, 50.f, BASE_BSDF, rs.CUDA_CAPABLE_GPU);
+        //loader01.load_obj("chess_moved.obj", { 200.f, 0.f, 0.f }, 50.f);
         //loader01.load_obj("cube.obj", { 50.f, 15.f, 0.f }, 10.f, loader05.gifn("jade"));
         //loader01.load_obj("ship.obj", { 0.f, 0.f, 0.f }, 10.f, loader05.gifn("white"));
         
@@ -310,22 +320,22 @@ namespace penguinPT {
         rs.scene.build_BVH();
         
         /////////////////////////////////////// envmap ///////////////////////////////////////
-        loader03.load_from_file("assets/hdris/qwantani_noon_2k.hdr");
-        rs.scene.environnement_map.strength = 0.25f;
+        loader03.load_from_file("assets/hdris/qwantani_late_afternoon_2k.hdr");
+        rs.scene.environnement_map.strength = 1.f;
         loader03.send_to_gpu(rs.scene.environnement_map, cudaFilterModeLinear);
 
         /////////////////////////////////////// Volumes ///////////////////////////////////////
-        loader02.load_nvdb("volume.nvdb", rs.CUDA_CAPABLE_GPU);
+        //loader02.load_nvdb("volume.nvdb", rs.CUDA_CAPABLE_GPU);
         //loader02.load_nvdb("volume.nvdb",rs.CUDA_CAPABLE_GPU);
         //loader02.load_nvdb("smoke2.nvdb", rs.CUDA_CAPABLE_GPU);
         
-        //loader02.volume_parameters(1, nanovdb::Vec3f(1.f, 1.5f, 2.f), nanovdb::Vec3f(1.f), -0.4f, nanovdb::Vec3f(0.f));
-        //loader02.set_tranforms(1, 0.1f, nanovdb::Vec3f(20.f, 20.f, 0.f));
+        loader02.volume_parameters(1, nanovdb::Vec3f(1.f), nanovdb::Vec3f(0.f), -0.4f, nanovdb::Vec3f(5.f, 1.f, 0.5f));
+        loader02.set_tranforms(1, 0.07f, nanovdb::Vec3f(0.f, 20.f, 0.f));
         
         //loader02.volume_parameters(0, nanovdb::Vec3f(0.5f), nanovdb::Vec3f(0.5f), -0.4f, nanovdb::Vec3f(0.f));
         //loader02.set_tranforms(0, 0.1f, nanovdb::Vec3f(0.f, 0.f, 0.f));
 
-        loader02.volume_parameters(0, nanovdb::Vec3f(2.f), nanovdb::Vec3f(1.f), 0.5f, nanovdb::Vec3f(0.));
+        loader02.volume_parameters(0, nanovdb::Vec3f(1.f), nanovdb::Vec3f(0.5f), -0.4f, nanovdb::Vec3f(0.));
         loader02.set_tranforms(0, 0.1f, nanovdb::Vec3f(0.f, 20.f, 0.f));
 
         loader02.send_to_scene(rs.scene);

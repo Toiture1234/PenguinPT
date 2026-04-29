@@ -154,7 +154,7 @@ namespace penguinPT::util {
 	__hostdev__ float Cos2Phi(const nanovdb::Vec3f& w) { return CosPhi(w) * CosPhi(w); }
 	__hostdev__ float Sin2Phi(const nanovdb::Vec3f& w) { return SinPhi(w) * SinPhi(w); }
 
-	__hostdev__ inline nanovdb::Vec3f ToWorld(nanovdb::Vec3f& X, nanovdb::Vec3f& Y, nanovdb::Vec3f& Z, nanovdb::Vec3f& V) 
+	__hostdev__ inline nanovdb::Vec3f ToWorld(nanovdb::Vec3f& X, nanovdb::Vec3f& Y, nanovdb::Vec3f& Z, nanovdb::Vec3f V) 
 	{
 		return V[0] * X + V[1] * Y + V[2] * Z;
 	}

@@ -31,7 +31,8 @@
 //#define WHITE_FURNACE
 //#define SEE_NORMALS
 
-// still need to figure out why it's not working well on CPU
+// Warning : for some reasons the direct lightning is not working on CPU,
+// this is caused by unworking envmap sampling I don't know why
 #define DIRECT_LIGHTNING
 //#define EXPERIMENTAL_CAUSTICS
 

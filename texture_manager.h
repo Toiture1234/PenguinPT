@@ -12,29 +12,33 @@ namespace penguinPT {
 
 		// texture data, saved here to be able to delete it later when texture aren't used anymore
 		std::vector<cudaArray_t> texture_data_GPU;
+		std::vector<float*> texture_data_CPU;
 
-		// load a texture from a file path and binds it to a CUDA texture object, 
-		// the texture data (CUDA array) lives on the texture manager
+		// Load a texture from a file path and binds it to a CUDA texture object, 
+		// the texture data (CUDA array) lives on the texture manager.
 		//  - float4 version
-		bool load_texture_GPU_f4(std::string path, cudaTextureObject_t& tex);
+		bool load_texture_GPU_float4(std::string path, cudaTextureObject_t& tex);
 
-		// load a texture from a file path and binds it to a CUDA texture object, 
-		// the texture data (CUDA array) lives on the texture manager
+		// Load a texture from a file path and binds it to a CUDA texture object, 
+		// the texture data (CUDA array) lives on the texture manager.
 		//  - float version
-		bool load_texture_GPU_f(std::string path, cudaTextureObject_t& tex);
+		bool load_texture_GPU_float(std::string path, cudaTextureObject_t& tex);
 
-		// this will as usual, wait some time to be implemented (need to modify CPU_texture first)
-		// load a texture from a file path and binds it to a CPU texture object (float4 version)
+		// Load a texture from a file path and binds it to a CPU texture object,
+		// the texture data (float pointer) lives on the texture manager.
+		//  - float4 version
 		bool load_texture_CPU_float4(std::string path, CPU_float4_texture& tex);
 
-		// load a texture from a file path and binds it to a CPU texture object (float version)
+		// Load a texture from a file path and binds it to a CPU texture object,
+		// the texture data (float pointer) lives on the texture manager.
+		//  - float version
 		bool load_texture_CPU_float(std::string path, CPU_float_texture& tex);
 
 		void clean();
 	};
 
 	// texture manager functions
-	bool texture_manager::load_texture_GPU_f4(std::string path, cudaTextureObject_t& tex) {
+	bool texture_manager::load_texture_GPU_float4(std::string path, cudaTextureObject_t& tex) {
 
 		cudaResourceDesc resDesc;
 		int i;
@@ -120,7 +124,7 @@ namespace penguinPT {
 		
 		return true;
 	}
-	bool texture_manager::load_texture_GPU_f(std::string path, cudaTextureObject_t& tex) {
+	bool texture_manager::load_texture_GPU_float(std::string path, cudaTextureObject_t& tex) {
 
 		cudaResourceDesc resDesc;
 		int i;
@@ -200,6 +204,106 @@ namespace penguinPT {
 			cudaCreateTextureObject(&tex, &resDesc, &texDesc, NULL);
 		}
 
+		return true;
+	}
+
+	bool texture_manager::load_texture_CPU_float4(std::string path, CPU_float4_texture& tex) {
+		int i;
+		if (file_util::is_word_in_list(path, texture_names, i)) {
+			std::cout << "Reuse texture to save memory.\n";
+			int width = texture_sizes.at(i).x, height = texture_sizes.at(i).y;
+
+			tex.width = width;
+			tex.height = height;
+			tex.tex_data = texture_data_CPU.at(i);
+		}
+		else {
+			std::cout << "Initialize new texture.\n";
+			float* tex_data;
+			int width, height;
+			
+			sf::Image temp_sfImage;
+			if (!temp_sfImage.loadFromFile(path)) {
+				std::cout << "ERROR - Failed to load texture " << path << "\n";
+				return false;
+			}
+
+			sf::Vector2u size = temp_sfImage.getSize();
+
+			tex_data = new float[size.x * size.y * 4];
+			for (int x = 0; x < size.x; x++) {
+				for (int y = 0; y < size.y; y++) {
+					sf::Color px_color = temp_sfImage.getPixel(x, size.y - y - 1);
+
+					int idx = x + y * size.x;
+					tex_data[idx * 4] = (float)px_color.r / 255.f;
+					tex_data[idx * 4 + 1] = (float)px_color.g / 255.f;
+					tex_data[idx * 4 + 2] = (float)px_color.b / 255.f;
+					tex_data[idx * 4 + 3] = (float)px_color.a / 255.f;
+				}
+			}
+
+			width = size.x;
+			height = size.y;
+
+			// add texture to array list
+			texture_names.push_back(path);
+			texture_sizes.push_back(sf::Vector2u(width, height));
+
+			texture_data_CPU.push_back(tex_data);
+
+			tex.width = width;
+			tex.height = height;
+			tex.tex_data = texture_data_CPU.back();
+		}
+		return true;
+	}
+	bool texture_manager::load_texture_CPU_float(std::string path, CPU_float_texture& tex) {
+		int i;
+		if (file_util::is_word_in_list(path, texture_names, i)) {
+			std::cout << "Reuse texture to save memory.\n";
+			int width = texture_sizes.at(i).x, height = texture_sizes.at(i).y;
+
+			tex.width = width;
+			tex.height = height;
+			tex.tex_data = texture_data_CPU.at(i);
+		}
+		else {
+			std::cout << "Initialize new texture.\n";
+			float* tex_data;
+			int width, height;
+
+			sf::Image temp_sfImage;
+			if (!temp_sfImage.loadFromFile(path)) {
+				std::cout << "ERROR - Failed to load texture " << path << "\n";
+				return false;
+			}
+
+			sf::Vector2u size = temp_sfImage.getSize();
+
+			tex_data = new float[size.x * size.y * 4];
+			for (int x = 0; x < size.x; x++) {
+				for (int y = 0; y < size.y; y++) {
+					sf::Color px_color = temp_sfImage.getPixel(x, size.y - y - 1);
+
+					int idx = x + y * size.x;
+					tex_data[idx] = (float)px_color.r / 255.f;
+				}
+			}
+
+			width = size.x;
+			height = size.y;
+
+			// add texture to array list
+			texture_names.push_back(path);
+			texture_sizes.push_back(sf::Vector2u(width, height));
+
+			texture_data_CPU.push_back(tex_data);
+
+			tex.width = width;
+			tex.height = height;
+			tex.tex_data = texture_data_CPU.back();
+		}
 		return true;
 	}
 
