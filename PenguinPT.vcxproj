@@ -38,6 +38,7 @@
     <ClInclude Include="pathtracer.h" />
     <ClInclude Include="phase_function.h" />
     <ClInclude Include="renderer_services.h" />
+    <ClInclude Include="SDPT_loader.h" />
     <ClInclude Include="texture_manager.h" />
     <ClInclude Include="Utility.h" />
     <ClInclude Include="volumes.h" />

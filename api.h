@@ -96,4 +96,5 @@ typedef curandStatePhilox4_32_10_t Rand_state;
 #include "obj_loader.h"
 #include "nanovdb_loader.h"
 #include "usd_scene_loader.h"
+#include "SDPT_loader.h"
 #include "GUI.h"

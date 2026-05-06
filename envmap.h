@@ -3,7 +3,7 @@
 namespace penguinPT {
 	class Envmap {
 	public:
-		__hostdev__ Envmap() : width(0), height(0), strength(1.f), sum(0.f) {}
+		__hostdev__ Envmap() : width(0), height(0), strength(1.f), sum(0.f), angle(0.f) {}
 		__hostdev__ ~Envmap() {}
 
 		// GPU stuff
@@ -16,6 +16,7 @@ namespace penguinPT {
 
 		unsigned int width, height;
 		float strength;
+		float angle;
 
 		float sum;
 
@@ -100,6 +101,7 @@ void penguinPT::loader::envmap_loader::clean() {
 	CUDA_CHECK(cudaFreeArray(data_cuda_cdf));
 	free(data);
 	free(cdf);
+	data = nullptr, width = 0, height = 0, sum = 0.f, cdf = nullptr;
 }
 bool penguinPT::loader::envmap_loader::send_to_gpu(Envmap& source, cudaTextureFilterMode filter) {
 	source.width = this->width;
@@ -174,6 +176,7 @@ bool penguinPT::loader::envmap_loader::send_to_gpu(Envmap& source, cudaTextureFi
 __device__ nanovdb::Vec3f penguinPT::Envmap::eval_envmap(nanovdb::Vec3f wi, float& pdf) {
 	float theta = acosf(CLAMP(wi[1], -1.0f, 1.0f));
 	float2 uv = make_float2((PI + atan2f(wi[2], wi[0])) * INV_TWO_PI, theta * INV_PI);
+	uv.x += angle;
 
 	float4 read = tex2D<float4>(this->image, uv.x, uv.y);
 	
@@ -220,6 +223,8 @@ __device__ inline float2 penguinPT::Envmap::binarySearch(float xi) {
 __device__ inline nanovdb::Vec3f penguinPT::Envmap::sample_envmap(nanovdb::Vec3f& L, float& pdf, Rand_state& state) {
 	float2 uv = binarySearch(randC(&state) * this->sum);
 	
+	uv.x -= angle;
+
 	float phi = uv.x * TWO_PI;
 	float theta = uv.y * PI;
 
@@ -233,6 +238,7 @@ __device__ inline nanovdb::Vec3f penguinPT::Envmap::sample_envmap(nanovdb::Vec3f
 __host__ nanovdb::Vec3f penguinPT::Envmap::eval_envmap_host(nanovdb::Vec3f wi, float& pdf) {
 	float theta = acosf(CLAMP(wi[1], -1.0f, 1.0f));
 	float2 uv = make_float2((PI + atan2f(wi[2], wi[0])) * INV_TWO_PI, theta * INV_PI);
+	uv.x += angle;
 
 	float4 read = image_cpu.sample_float(uv.x, uv.y);
 
@@ -277,6 +283,8 @@ __host__ inline float2 penguinPT::Envmap::binarySearch_host(float xi) {
 
 __host__ inline nanovdb::Vec3f penguinPT::Envmap::sample_envmap_host(nanovdb::Vec3f& L, float& pdf, Rand_state& state) {
 	float2 uv = binarySearch_host(rand01 * this->sum);
+
+	uv.x -= angle;
 
 	float phi = uv.x * TWO_PI;
 	float theta = uv.y * PI;

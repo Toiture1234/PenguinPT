@@ -77,30 +77,56 @@ namespace penguinPT {
 			scene.send_to_gpu_volumes();
 			scene.send_to_gpu_BSDF();
 		}
-
-		void clean() {
+		// partial cleaning : only cleans solid scene data
+		void clean_solid() {
 			if (CUDA_CAPABLE_GPU) {
-				if (scene.num_of_bsdf != 0) { 
-					// destroy every texture object
-					//for (int i = 0; i < scene.num_of_bsdf; i++) if (scene.bsdf_list[i].use_albedo_tex) CUDA_CHECK(cudaDestroyTextureObject(scene.bsdf_list[i].albedo_tex));
-					CUDA_CHECK(cudaFree(scene.bsdf_list)); 
+				if (scene.num_of_bsdf != 0) CUDA_CHECK(cudaFree(scene.bsdf_list));
+				if (scene.num_of_triangles != 0) {
+					CUDA_CHECK(cudaFree(scene.triangles));
+					CUDA_CHECK(cudaFree(scene.triangle_indicies));
+					CUDA_CHECK(cudaFree(scene.tr_data));
 				}
-				if (scene.num_of_triangles != 0) CUDA_CHECK(cudaFree(scene.triangles), free(scene.triangle_indicies));
 				if (scene.nodes_used != 0) CUDA_CHECK(cudaFree(scene.nodes));
-				if (scene.num_of_volumes != 0) CUDA_CHECK(cudaFree(scene.volumes));
+			}
+			else {
+				if (scene.num_of_bsdf != 0) free(scene.bsdf_list);
+				if (scene.num_of_triangles != 0) free(scene.triangles), free(scene.triangle_indicies), free(scene.tr_data);
+				if (scene.nodes_used != 0) free(scene.nodes);
+			}
+			scene.num_of_bsdf = 0;
+			scene.num_of_triangles = 0;
+			scene.nodes_used = 0;
+		}
 
+		// partial cleaning : only cleans volume scene data
+		void clean_volumes() {
+			if (CUDA_CAPABLE_GPU) {
+				if (scene.num_of_volumes != 0) CUDA_CHECK(cudaFree(scene.volumes));
+			}
+			else {
+				if (scene.num_of_volumes != 0) free(scene.volumes);
+			}
+			scene.num_of_volumes = 0;
+		}
+
+		// partial cleaning : only cleans envmap scene data
+		// this function only affects CUDA and CPU data need to be deleted from envmap_loader::clean()
+		void clean_envmap() {
+			if (CUDA_CAPABLE_GPU) {
 				// free envmap
 				CUDA_CHECK(cudaDestroyTextureObject(scene.environnement_map.image));
 				CUDA_CHECK(cudaDestroyTextureObject(scene.environnement_map.cdf));
 			}
-			else {
-				if (scene.num_of_bsdf != 0) free(scene.bsdf_list);
-				if (scene.num_of_triangles != 0) free(scene.triangles), free(scene.triangle_indicies);
-				if (scene.nodes_used != 0) free(scene.nodes);
-				if (scene.num_of_volumes != 0) free(scene.volumes);
-			}
+		}
+
+		void clean_all() {
+			clean_solid();
+			clean_volumes();
+			clean_envmap();
 			free(host_pixel_buffer);
 			std::cout << "Renderer service freed.\n";
 		}
+
+		
 	};
 }

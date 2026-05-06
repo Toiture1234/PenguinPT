@@ -23,10 +23,11 @@ namespace penguinPT::loader {
 			float ior,
 			float transparency);
 		void create_new_BSDF(std::string name, nanovdb::Vec3f albedo, float roughness);
-		void send_to_gpu(Scene_data& scene, bool use_gpu);
 		void send_to_scene(Scene_data& scene);
 
 		int gifn(std::string name);
+
+		void clean();
 	};
 
 	class obj_loader {
@@ -44,11 +45,13 @@ namespace penguinPT::loader {
 
 		unsigned int triangles_num = 0;
 
-		bool load_obj(std::string path, nanovdb::Vec3f position, float scale, unsigned int BSDF_id = BASE_BSDF, bool useGPU = true);
+		bool load_obj(std::string path, nanovdb::Vec3f position, float scale, bool useGPU = true, unsigned int BSDF_id = BASE_BSDF);
 		bool load_mtl(std::string path, bool useGPU = true);
 		void send_to_scene(Scene_data& scene);
 
 		void set_texture_manager(texture_manager* src) { texture_m_ptr = src; }
+
+		void clean();
 
 	private:
 		texture_manager* texture_m_ptr;
@@ -112,14 +115,15 @@ namespace penguinPT::loader {
 							if (useGPU) {
 								cudaTextureObject_t& a = bsdf_loader.BSDF_list.back().albedo_tex_CUDA;
 
-								texture_m_ptr->load_texture_GPU_float4("assets/models/" + tokens.at(1), a);
+								if(texture_m_ptr->load_texture_GPU_float4("assets/models/" + tokens.at(1), a)) 
+									bsdf_loader.BSDF_list.back().use_albedo_tex = true;
 							}
 							else {
 								CPU_float4_texture& a = bsdf_loader.BSDF_list.back().albedo_tex_HOST;
 
-								texture_m_ptr->load_texture_CPU_float4("assets/models/" + tokens.at(1), a);
+								if(texture_m_ptr->load_texture_CPU_float4("assets/models/" + tokens.at(1), a)) 
+									bsdf_loader.BSDF_list.back().use_albedo_tex = true;
 							}
-							bsdf_loader.BSDF_list.back().use_albedo_tex = true;
 						}
 					}
 					else if (tokens.at(0) == "map_Pr") {
@@ -127,31 +131,33 @@ namespace penguinPT::loader {
 							if (useGPU) {
 								cudaTextureObject_t& a = bsdf_loader.BSDF_list.back().roughness_tex_CUDA;
 
-								texture_m_ptr->load_texture_GPU_float("assets/models/" + tokens.at(1), a);
+								if(texture_m_ptr->load_texture_GPU_float("assets/models/" + tokens.at(1), a))
+									bsdf_loader.BSDF_list.back().use_roughness_tex = true;
 							}
 							else {
 								CPU_float_texture& a = bsdf_loader.BSDF_list.back().roughness_tex_HOST;
 
-								texture_m_ptr->load_texture_CPU_float("assets/models/" + tokens.at(1), a);
+								if(texture_m_ptr->load_texture_CPU_float("assets/models/" + tokens.at(1), a))
+									bsdf_loader.BSDF_list.back().use_roughness_tex = true;
 							}
-							bsdf_loader.BSDF_list.back().use_roughness_tex = true;
 						}
 					}
-					/*else if (tokens.at(0) == "map_Bump") {
+					else if (tokens.at(0) == "map_Bump") {
 						if (apply_definition) {
 							if (useGPU) {
 								cudaTextureObject_t& a = bsdf_loader.BSDF_list.back().normal_tex_CUDA;
 
-								texture_m_ptr->load_texture_GPU_float4("assets/models/" + tokens.at(3), a);
+								if(texture_m_ptr->load_texture_GPU_float4("assets/models/" + tokens.at(3), a))
+									bsdf_loader.BSDF_list.back().use_normal_tex = true;
 							}
 							else {
 								CPU_float4_texture& a = bsdf_loader.BSDF_list.back().normal_tex_HOST;
 
-								texture_m_ptr->load_texture_CPU_float4("assets/models/" + tokens.at(3), a);
+								if(texture_m_ptr->load_texture_CPU_float4("assets/models/" + tokens.at(3), a))
+									bsdf_loader.BSDF_list.back().use_normal_tex = true;
 							}
-							bsdf_loader.BSDF_list.back().use_normal_tex = true;
 						}
-					}*/
+					}
 				}
 				
 			}
@@ -161,7 +167,7 @@ namespace penguinPT::loader {
 		return true;
 	}
 
-	bool obj_loader::load_obj(std::string path, nanovdb::Vec3f position, float scale, unsigned int BSDF_id, bool useGPU) {
+	bool obj_loader::load_obj(std::string path, nanovdb::Vec3f position, float scale, bool useGPU, unsigned int BSDF_id) {
 
 		bool normals = false;
 		bool uvs = false;
@@ -350,11 +356,16 @@ namespace penguinPT::loader {
 		
 		bsdf_loader.send_to_scene(scene);
 
+	}
+	void obj_loader::clean() {
+		bsdf_loader.clean();
+
 		triangle_list.clear();
 		tr_data_list.clear();
 		vertices_list.clear();
 		normal_list.clear();
 		uv_list.clear();
+		triangles_num = 0;
 	}
 
 	
@@ -400,32 +411,14 @@ namespace penguinPT::loader {
 			scene.bsdf_list[i] = BSDF_list.at(i);
 			std::cout << " - " << BSDF_name.at(i) << "\n";
 		}
-
+	}
+	void BSDF_loader::clean() {
 		BSDF_list.clear();
+		BSDF_name.clear();
+		principled_BSDF zero; zero.alpha = 0.f; BSDF_list.push_back(zero); BSDF_name.push_back("zero");
+		principled_BSDF base_BSDF; BSDF_list.push_back(base_BSDF); BSDF_name.push_back("base_BSDF");
 	}
-	void BSDF_loader::send_to_gpu(Scene_data& scene, bool use_gpu) {
-		principled_BSDF* host_list = new principled_BSDF[BSDF_list.size()];
-		for (int i = 0; i < BSDF_list.size(); i++) {
-			host_list[i] = BSDF_list.at(i);
-		}
-		
-		if (use_gpu) {
-			// transfer
-			cudaError_t err = cudaMalloc((void**)&scene.bsdf_list, BSDF_list.size() * sizeof(principled_BSDF));
-			if (err != CUDA_SUCCESS) {
-				std::cout << "Failed CUDA memory allocation for BSDF.\n";
-			}
-			err = cudaMemcpy(scene.bsdf_list, host_list, BSDF_list.size() * sizeof(principled_BSDF), cudaMemcpyHostToDevice);
-			if (err != CUDA_SUCCESS) {
-				std::cout << "Failed CUDA memory transfert for BSDF.\n";
-			}
 
-			delete[] host_list;
-		}
-		else {
-			scene.bsdf_list = host_list;
-		}
-	}
 	int BSDF_loader::gifn(std::string name) {
 		for (int i = 0; i < BSDF_list.size(); i++) {
 			if (name == BSDF_name.at(i)) return i;

@@ -100,6 +100,7 @@ namespace penguinPT::GUI {
 		Typography::character_type char_type = Typography::body;
 		
 		Color::brightness_level b_lv = Color::medium;
+		bool has_borders = true;
 	public:
 		button(std::string n) : name(n) {}
 		~button() {}
@@ -238,8 +239,8 @@ namespace penguinPT::GUI {
 		txt_m->text.setPosition(position);
 		txt_m->text.setCharacterSize(char_type);
 
-		sf::FloatRect r = txt_m->text.getLocalBounds();
-		size = sf::Vector2f(r.getSize().x * 1.1f, txt_m->get_y(char_type) * 1.7f);
+		unsigned int n = str.length();
+		size = sf::Vector2f(n * char_type / 1.4f, char_type * 1.5f);
 	}
 	bool button::is_mouse_on_button(sf::Vector2f mouse_pos) const {
 		return mouse_pos.x > position.x && mouse_pos.x < position.x + size.x && mouse_pos.y > position.y && mouse_pos.y < position.y + size.y;
@@ -253,10 +254,11 @@ namespace penguinPT::GUI {
 			GUI_utility::draw_GUI_rect(target, position, size, b_lv + 30);
 		}
 		else {
-			GUI_utility::draw_GUI_rect(target, position, size, b_lv);
+			if(has_borders) GUI_utility::draw_GUI_rect(target, position, size, b_lv);
+			else GUI_utility::draw_GUI_rect_noBorders(target, position, size, b_lv);
 		}
 
-		if (txt_m != nullptr) txt_m->draw_text(target, text, position + size * 0.05f, char_type);
+		if (txt_m != nullptr) txt_m->draw_text(target, text, position + sf::Vector2f(char_type, 0.f), char_type);
 	}
 	// NB : the defined size can't be smaller than the original size given by string
 	void button::define_size(sf::Vector2f s) {
@@ -279,16 +281,15 @@ namespace penguinPT::GUI {
 		txt_m->text.setPosition(position);
 		txt_m->text.setCharacterSize(char_type);
 
-		sf::FloatRect r = txt_m->text.getLocalBounds();
-		size = sf::Vector2f(r.getSize().x * 1.1f, txt_m->get_y(char_type) * 1.7f);
-		
+		unsigned int n = str.length();
+		size = sf::Vector2f(n * char_type / 1.4f, char_type * 1.5f);
 	}
 	void text_zone::draw(sf::RenderWindow* target) {
 		if(has_b)
 			GUI_utility::draw_GUI_rect(target, position, size, b_lv);
 		else GUI_utility::draw_GUI_rect_noBorders(target, position, size, b_lv);
 
-		if (txt_m != nullptr) txt_m->draw_text(target, text, position + size * 0.05f, char_type);
+		if (txt_m != nullptr) txt_m->draw_text(target, text, position + sf::Vector2f(char_type, 0.f), char_type);
 	}
 	// NB : the defined size can't be smaller than the original size given by string
 	void text_zone::define_size(sf::Vector2f s) {
@@ -353,12 +354,15 @@ namespace penguinPT::GUI {
 
 	button& GUI_manager::find_button(std::string name) {
 		for (button& r : button_list) if (r.name == name) return r;
+		std::cout << "Failed to find button " << name << "\n";
 	}
 	slider& GUI_manager::find_slider(std::string name) {
 		for (slider& r : slider_list) if (r.name == name) return r;
+		std::cout << "Failed to find slider " << name << "\n";
 	}
 	text_zone& GUI_manager::find_text_zone(std::string name) {
 		for (text_zone& r : text_zone_list) if (r.name == name) return r;
+		std::cout << "Failed to find text zone " << name << "\n";
 	}
 	void GUI_manager::add_button(button r) {
 		button_list.push_back(r);

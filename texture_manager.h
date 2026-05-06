@@ -312,5 +312,8 @@ namespace penguinPT {
 		texture_sizes.clear();
 
 		for (cudaArray_t& t : texture_data_GPU) CUDA_CHECK(cudaFreeArray(t));
+
+		texture_data_GPU.clear();
+		texture_data_CPU.clear();
 	}
 }

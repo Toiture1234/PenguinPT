@@ -43,7 +43,7 @@ namespace penguinPT {
 #else 
 			// solid hit
 			principled_BSDF& surface_bsdf = rs.scene.bsdf_list[info.BSDF_index];
-			float mult = surface_bsdf.getAlbedo_textured_CUDA(info.uv)[3];
+			float mult = 1.f - (1.f - surface_bsdf.transparency) * surface_bsdf.getAlbedo_textured_CUDA(info.uv)[3];
 			if (mult < 0.05f) return 0.f;
 			T *= mult;
 
@@ -97,7 +97,7 @@ namespace penguinPT {
 #else 
 			// solid hit
 			principled_BSDF& surface_bsdf = rs.scene.bsdf_list[info.BSDF_index];
-			float mult = surface_bsdf.getAlbedo_textured_HOST(info.uv)[3];
+			float mult = 1.f - (1.f - surface_bsdf.transparency) * surface_bsdf.getAlbedo_textured_HOST(info.uv)[3];
 			if (mult < 0.05f) return 0.f;
 			T *= mult;
 

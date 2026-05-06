@@ -134,7 +134,7 @@ namespace penguinPT {
 				// normal modification
 				nanovdb::Vec3f T, B;
 				util::Onb(info.normal, T, B);
-				info.normal = util::ToWorld(T, B, info.normal, surface_bsdf.getNormal_textured_CUDA(info.uv) * 2.f - nanovdb::Vec3f(1.f));
+				info.normal = util::ToWorld(T, B, info.normal, surface_bsdf.getNormal_textured_CUDA(info.uv));
 
 				// fix normal
 				info.normal = util::refIfNeg(info.normal, -ray.dir());
@@ -173,7 +173,7 @@ namespace penguinPT {
 
 					surface_scatter = true;
 
-					if (through) attenuation = surface_bsdf.absorption, scattering_sss = surface_bsdf.scattering, sss_g = surface_bsdf.g;
+					if (through && does_scatter) attenuation = surface_bsdf.absorption, scattering_sss = surface_bsdf.scattering, sss_g = surface_bsdf.g;
 
 					ray.reset(ray(t_max), L_dir);
 				}
@@ -325,7 +325,7 @@ namespace penguinPT {
 				// normal modification
 				nanovdb::Vec3f T, B;
 				util::Onb(info.normal, T, B);
-				info.normal = util::ToWorld(T, B, info.normal, surface_bsdf.getNormal_textured_HOST(info.uv) * 2.f - nanovdb::Vec3f(1.f));
+				info.normal = util::ToWorld(T, B, info.normal, surface_bsdf.getNormal_textured_HOST(info.uv));
 
 				// fix normal
 				info.normal = util::refIfNeg(info.normal, -ray.dir());
@@ -363,7 +363,7 @@ namespace penguinPT {
 
 					surface_scatter = true;
 
-					if (through) attenuation = surface_bsdf.absorption, scattering_sss = surface_bsdf.scattering, sss_g = surface_bsdf.g;
+					if (through && does_scatter) attenuation = surface_bsdf.absorption, scattering_sss = surface_bsdf.scattering, sss_g = surface_bsdf.g;
 
 					ray.reset(ray(t_max), L_dir);
 				}

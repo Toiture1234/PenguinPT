@@ -1,0 +1,3 @@
+solid "bunny.obj" 0 0 0 1 1 1 0 0 0
+volume "volume.nvdb" 0 20 0   0.1 0.1 0.1   0 0 0   1 1 1  0.8 0.8 0.8   -0.4  1 0 0  1
+envmap "qwantani_late_afternoon_2k.hdr"

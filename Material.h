@@ -1,6 +1,7 @@
 #pragma once
 
 #define POW_ROUGHNESS(r) ((r) * (r) * (r) * (r) * (r) * (r))
+#define GAMMA_CLAMP 0.0001f
 
 namespace penguinPT {
 	// one sample BSDF type, blend between differents models
@@ -21,7 +22,7 @@ namespace penguinPT {
 		//  - when transparency is used, the surface uses refraction
 		//  - when alpha is used, the light ray passes without deformation
 		// The total / visual "transparency" can be calculated as follow :
-		//  - Tv = (1. - alpha) * transparency
+		//               Tv = (1. - alpha) * transparency
 		float alpha;
 		float transparency; // [0 ; 1] : 1 -> fully transparent, 0 -> fully opaque
 
@@ -44,7 +45,7 @@ namespace penguinPT {
 		CPU_float_texture roughness_tex_HOST;
 		CPU_float4_texture normal_tex_HOST;
 
-		__hostdev__ principled_BSDF() : roughness(0.f), anisotropy(0.), metalness(0.), ior(1.5f), albedo(0.f), emission(0.f), absorption(0.f), alpha(1.f), transparency(0.f), scattering(0.f), change_medium(false) {}
+		__hostdev__ principled_BSDF() : roughness(0.f), anisotropy(0.), metalness(0.), ior(1.5f), albedo(0.f), emission(0.f), absorption(0.f), alpha(1.f), transparency(0.f), scattering(0.f), change_medium(true) {}
 		__hostdev__ ~principled_BSDF() {}
 
 		// Evaluation
@@ -156,9 +157,6 @@ namespace penguinPT {
 		float roughness_,
 		float eta) const
 	{
-		// test if model is is_through
-		//if (is_through) return nanovdb::Vec3f(pdf);
-
 		auto pow5 = [](float v) {return (v * v) * (v * v) * v; };
 
 		// convert to local space
@@ -226,8 +224,8 @@ namespace penguinPT {
 		if (glass_pr > 0.f) {
 			float reflect_prob = util::mix(f0, f90, schlickWt);
 			//float exponent = 1.f + 10000.f * POW_ROUGHNESS(1.f - roughness);
-			float alpha = fmaxf(roughness_ * roughness_, 0.005f);
-			float exponent = 1.f + 1.f / alpha;
+			float gamma = fmaxf(roughness_ * roughness_, GAMMA_CLAMP);
+			float exponent = 1.f + 1.f / gamma;
 
 			if (reflect) {
 				float cosThetaI = fabsf(util::CosTheta(wi)), cosThetaO = fabsf(util::CosTheta(wo));
@@ -283,20 +281,11 @@ namespace penguinPT {
 
 		auto pow5 = [](float v) {return (v * v) * (v * v) * v; };
 
-		// texture evaluation
-		nanovdb::Vec3f albedo_ = albedo;
-		float roughness_ = roughness;
-		float alpha_ = alpha;
+		nanovdb::Vec4f al_data = getAlbedo_textured_CUDA(uv);
+		nanovdb::Vec3f albedo_ = nanovdb::Vec3f(al_data[0], al_data[1], al_data[2]);
+		float alpha_ = al_data[3];
 
-		
-		if (use_albedo_tex) {
-			float4 albedo_data = tex2D<float4>(albedo_tex_CUDA, uv.x, uv.y);
-			albedo_ = { albedo_data.x, albedo_data.y, albedo_data.z };
-			alpha_ = albedo_data.w;
-		}
-		if (use_roughness_tex) {
-			roughness_ = tex2D<float>(roughness_tex_CUDA, uv.x, uv.y);
-		}
+		float roughness_ = getRoughness_textured_CUDA(uv);
 		
 		// potentially go through surface
 		if (randC(&rng_state) >= alpha_) {
@@ -358,9 +347,8 @@ namespace penguinPT {
 		// specular refraction
 		else {
 			float reflect_prob = util::mix(f0, f90, schlickWt);
-			//float exponent = 1.f + 10000.f * POW_ROUGHNESS(1.f - roughness);
-			float alpha = fmaxf(roughness_ * roughness_, 0.005f);
-			float exponent = 1.f + 1.f / alpha;
+			float gamma = fmaxf(roughness_ * roughness_, GAMMA_CLAMP);
+			float exponent = 1.f + 1.f / gamma;
 
 			nanovdb::Vec3f refracted = util::refract(-wo, nanovdb::Vec3f(0.f, 0.f, 1.f), eta);
 
@@ -391,19 +379,11 @@ namespace penguinPT {
 
 		auto pow5 = [](float v) {return (v * v) * (v * v) * v; };
 
-		// texture evaluation
-		nanovdb::Vec3f albedo_ = albedo;
-		float roughness_ = roughness;
-		float alpha_ = alpha;
+		nanovdb::Vec4f al_data = getAlbedo_textured_HOST(uv);
+		nanovdb::Vec3f albedo_ = nanovdb::Vec3f(al_data[0], al_data[1], al_data[2]);
+		float alpha_ = al_data[3];
 
-		if (use_albedo_tex) {
-			float4 albedo_data = albedo_tex_HOST.sample_float(uv.x, uv.y);
-			albedo_ = { albedo_data.x, albedo_data.y, albedo_data.z };
-			alpha_ = albedo_data.w;
-		}
-		if (use_roughness_tex) {
-			roughness_ = roughness_tex_HOST.sample_float(uv.x, uv.y);
-		}
+		float roughness_ = getRoughness_textured_HOST(uv);
 
 		// potentially go through surface
 		if (rand01 >= alpha_) {
@@ -465,9 +445,8 @@ namespace penguinPT {
 		// specular refraction
 		else {
 			float reflect_prob = util::mix(f0, f90, schlickWt);
-			//float exponent = 1.f + 10000.f * POW_ROUGHNESS(1.f - roughness);
-			float alpha = fmaxf(roughness_ * roughness_, 0.005f);
-			float exponent = 1.f + 1.f / alpha;
+			float gamma = fmaxf(roughness_ * roughness_, GAMMA_CLAMP);
+			float exponent = 1.f + 1.f / gamma;
 
 			nanovdb::Vec3f refracted = util::refract(-wo, nanovdb::Vec3f(0.f, 0.f, 1.f), eta);
 
@@ -500,7 +479,7 @@ namespace penguinPT {
 			albedo_ = { albedo_data.x, albedo_data.y, albedo_data.z };
 			alpha_ = albedo_data.w;
 		}
-		return nanovdb::Vec4f(albedo_[0], albedo_[1], albedo_[2], 1.f - (1.f - transparency) * alpha_);
+		return nanovdb::Vec4f(albedo_[0], albedo_[1], albedo_[2], alpha_);
 	}
 	__host__ nanovdb::Vec4f principled_BSDF::getAlbedo_textured_HOST(float2 uv) const {
 		float alpha_ = alpha;
@@ -511,7 +490,7 @@ namespace penguinPT {
 			albedo_ = { albedo_data.x, albedo_data.y, albedo_data.z };
 			alpha_ = albedo_data.w;
 		}
-		return nanovdb::Vec4f(albedo_[0], albedo_[1], albedo_[2], 1.f - (1.f - transparency) * alpha_);
+		return nanovdb::Vec4f(albedo_[0], albedo_[1], albedo_[2], alpha_);
 	}
 	__device__ float principled_BSDF::getRoughness_textured_CUDA(float2 uv) const {
 		float roughness_ = roughness;
@@ -531,19 +510,19 @@ namespace penguinPT {
 	__device__ nanovdb::Vec3f principled_BSDF::getNormal_textured_CUDA(float2 uv) const {
 		if (use_normal_tex) {
 			float4 data = tex2D<float4>(normal_tex_CUDA, uv.x, uv.y);
-			return nanovdb::Vec3f(data.x, data.y, data.z);
+			return nanovdb::Vec3f(data.x, data.y, data.z) * 2.f - nanovdb::Vec3f(1.f);
 		}
 		else {
-			return nanovdb::Vec3f(0.5f, 0.5f, 1.f);
+			return nanovdb::Vec3f(0.0f, 0.0f, 1.f);
 		}
 	}
 	__host__ nanovdb::Vec3f principled_BSDF::getNormal_textured_HOST(float2 uv) const {
 		if (use_normal_tex) {
 			float4 data = normal_tex_HOST.sample_float(uv.x, uv.y);
-			return nanovdb::Vec3f(data.x, data.y, data.z);
+			return nanovdb::Vec3f(data.x, data.y, data.z) * 2.f - nanovdb::Vec3f(1.f);
 		}
 		else {
-			return nanovdb::Vec3f(0.5f, 0.5f, 1.f);
+			return nanovdb::Vec3f(0.0f, 0.0f, 1.f);
 		}
 	}
 }

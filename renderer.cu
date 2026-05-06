@@ -130,6 +130,8 @@ namespace penguinPT {
         else {
             for (int x = 0; x < rs.width; x++) {
                 for (int y = 0; y < rs.height; y++) {
+
+                    if (x > rs.width || y > rs.height) return; // check if no out of window, useless here but who cares
                     
                     int idx = x + y * rs.width;
 
@@ -217,6 +219,7 @@ namespace penguinPT {
         loader::obj_loader loader01;
         loader::nanovdb_loader loader02;
         loader::envmap_loader loader03;
+        loader::SDPT_Loader scene_loader_sdpt;
         //loader::usd_scene_loader loader04;
         //loader::BSDF_loader loader05;
 
@@ -225,7 +228,7 @@ namespace penguinPT {
         loader01.set_texture_manager(&tex_manager);
 
         /////////////////////////////////////// GUI ///////////////////////////////////////
-        GUI::text_manager text_manager("assets/GUI/NaturalMono-Regular.ttf");
+        GUI::text_manager text_manager("assets/GUI/Montserrat-Light.ttf");
         GUI::GUI_manager main_GUI_manager;
         main_GUI_manager.apply_text_manager(&text_manager);
 
@@ -247,6 +250,22 @@ namespace penguinPT {
         main_GUI_manager.add_text_zone(GUI::text_zone({ WINDOW_RES_X * (1.f / 30.f), WINDOW_RES_Y * (1.f / 60.f) }, "title_text"));
         main_GUI_manager.find_text_zone("title_text").char_type = GUI::Typography::title;
         main_GUI_manager.find_text_zone("title_text").set_string("PenguinPT, version 0.0");
+
+        // buttons 
+        main_GUI_manager.add_button(GUI::button(main_GUI_manager.on_follow_text_zone("title_text"), "render:launch"));
+        main_GUI_manager.find_button("render:launch").char_type = GUI::Typography::title;
+        main_GUI_manager.find_button("render:launch").set_string("Launch render");
+        main_GUI_manager.find_button("render:launch").has_borders = false;
+
+        main_GUI_manager.add_button(GUI::button(main_GUI_manager.on_follow_button("render:launch"), "render:stop"));
+        main_GUI_manager.find_button("render:stop").char_type = GUI::Typography::title;
+        main_GUI_manager.find_button("render:stop").set_string("Stop render");
+        main_GUI_manager.find_button("render:stop").has_borders = false;
+
+        main_GUI_manager.add_button(GUI::button(main_GUI_manager.on_follow_button("render:stop"), "scene:new"));
+        main_GUI_manager.find_button("scene:new").char_type = GUI::Typography::title;
+        main_GUI_manager.find_button("scene:new").set_string("Load new scene");
+        main_GUI_manager.find_button("scene:new").has_borders = false;
 
         main_GUI_manager.add_text_zone(GUI::text_zone({ WINDOW_RES_X * (1.f / 30.f + 2.f / 3.f), WINDOW_RES_Y * (2.f / 30.f) }, "Camera:options:text"));
         main_GUI_manager.find_text_zone("Camera:options:text").char_type = GUI::Typography::title;
@@ -276,70 +295,80 @@ namespace penguinPT {
         main_GUI_manager.find_slider("camera:zoom").slider_percentage = 0.1f;
         main_GUI_manager.find_slider("camera:zoom").interpolation_value = 0.1f;
 
-        // buttons 
-        main_GUI_manager.add_button(GUI::button(main_GUI_manager.on_follow_text_zone("title_text"), "render:launch"));
-        main_GUI_manager.find_button("render:launch").char_type = GUI::Typography::title;
-        main_GUI_manager.find_button("render:launch").set_string("Launch render");
+        main_GUI_manager.add_text_zone(GUI::text_zone(main_GUI_manager.on_follow_slider("camera:zoom", 'Y'), "Envmap:title"));
+        main_GUI_manager.find_text_zone("Envmap:title").char_type = GUI::Typography::title;
+        main_GUI_manager.find_text_zone("Envmap:title").set_string("Envmap");
+        main_GUI_manager.find_text_zone("Envmap:title").define_size({ WINDOW_RES_X * (1. - (1.f / 30.f + 2.f / 3.f)), 0.f });
+        main_GUI_manager.find_text_zone("Envmap:title").has_b = true;
 
-        main_GUI_manager.add_button(GUI::button(main_GUI_manager.on_follow_button("render:launch"), "render:stop"));
-        main_GUI_manager.find_button("render:stop").char_type = GUI::Typography::title;
-        main_GUI_manager.find_button("render:stop").set_string("Stop render");
+        // loaders
+        main_GUI_manager.add_button(GUI::button(main_GUI_manager.on_follow_text_zone("Envmap:title", 'Y'), "Envmap:load"));
+        main_GUI_manager.find_button("Envmap:load").char_type = GUI::Typography::body;
+        main_GUI_manager.find_button("Envmap:load").set_string("Change environnement map");
+        main_GUI_manager.find_button("Envmap:load").define_size({ WINDOW_RES_X * (1. - (1.f / 30.f + 2.f / 3.f)), 0.f });
+        main_GUI_manager.find_button("Envmap:load").has_borders = false;
 
-        //main_GUI_manager.add_button(GUI::button({ WINDOW_RES_X * (1.f / 6.f), 0.f }, "render:stop"));
-        //main_GUI_manager.find_button("render:launch").char_type = GUI::Typography::title;
-        //main_GUI_manager.find_button("render:launch").set_string("Launch render");
+        // envmap strength
+        main_GUI_manager.add_text_zone(GUI::text_zone(main_GUI_manager.on_follow_button("Envmap:load", 'Y'), "Envmap:strength:title"));
+        main_GUI_manager.find_text_zone("Envmap:strength:title").char_type = GUI::Typography::body;
+        main_GUI_manager.find_text_zone("Envmap:strength:title").set_string("Envmap strength");
+        main_GUI_manager.find_text_zone("Envmap:strength:title").define_size({ WINDOW_RES_X * (1. - (1.f / 30.f + 2.f / 3.f)), 0.f });
+        main_GUI_manager.add_slider(GUI::slider(main_GUI_manager.on_follow_text_zone("Envmap:strength:title", 'Y'), { WINDOW_RES_X * (1. - (1.f / 30.f + 2.f / 3.f)), WINDOW_RES_Y * (1.f / 60.f) }, "Envmap:strength"));
+        main_GUI_manager.find_slider("Envmap:strength").min_bounds = 0.f;
+        main_GUI_manager.find_slider("Envmap:strength").max_bounds = 1.f;
+        main_GUI_manager.find_slider("Envmap:strength").slider_percentage = 0.1f;
+        main_GUI_manager.find_slider("Envmap:strength").interpolation_value = 1.f;
+
+        // envmap angle
+        main_GUI_manager.add_text_zone(GUI::text_zone(main_GUI_manager.on_follow_slider("Envmap:strength", 'Y'), "Envmap:angle:title"));
+        main_GUI_manager.find_text_zone("Envmap:angle:title").char_type = GUI::Typography::body;
+        main_GUI_manager.find_text_zone("Envmap:angle:title").set_string("Envmap angle");
+        main_GUI_manager.find_text_zone("Envmap:angle:title").define_size({ WINDOW_RES_X * (1. - (1.f / 30.f + 2.f / 3.f)), 0.f });
+        main_GUI_manager.add_slider(GUI::slider(main_GUI_manager.on_follow_text_zone("Envmap:angle:title", 'Y'), { WINDOW_RES_X * (1. - (1.f / 30.f + 2.f / 3.f)), WINDOW_RES_Y * (1.f / 60.f) }, "Envmap:angle"));
+        main_GUI_manager.find_slider("Envmap:angle").min_bounds = -1.f;
+        main_GUI_manager.find_slider("Envmap:angle").max_bounds = 1.f;
+        main_GUI_manager.find_slider("Envmap:angle").slider_percentage = 0.1f;
+        main_GUI_manager.find_slider("Envmap:angle").interpolation_value = 0.5f;
 
         //loader04.load_usd_scene("untitled.usda");
-        /*
-        loader05.create_new_BSDF("floor", 0.1f, nanovdb::Vec3f(0.4f, 0.3f, 0.1f), nanovdb::Vec3f(0.f), nanovdb::Vec3f(0.f), 0.f, 1.5f, 0.f);
-
-        //loader05.create_new_BSDF("gold", 0.1f, nanovdb::Vec3f(0.8f, 0.4f, 0.05f), nanovdb::Vec3f(0.f), nanovdb::Vec3f(1.f), 1.f, 1.47f, 0.f);
-        
-        loader05.create_new_BSDF("jade", 0.05, nanovdb::Vec3f(0.7f, 1.f, 0.5f), nanovdb::Vec3f(0.f), nanovdb::Vec3f(0.2f, 0.f, 0.2f), 0.f, 1.66f, 0.8f);
-        loader05.BSDF_list.at(loader05.gifn("jade")).g = -0.8f;
-        loader05.BSDF_list.at(loader05.gifn("jade")).scattering = 4.f;
-        
-        loader05.create_new_BSDF("glass", 0.f, nanovdb::Vec3f(1.f), nanovdb::Vec3f(0.f), nanovdb::Vec3f(0.f), 0.f, 1.5f, 1.f);
-        loader05.create_new_BSDF("white", { 1.f, 1.f, 1.f }, 0.1f);
-        loader05.create_new_BSDF("red", { 0.6f, 0.05f, 0.01f }, 0.5f);
-        tex_manager.load_texture_GPU("assets/models/textures/WoodPanel.png", loader05.BSDF_list.at(loader05.gifn("red")).albedo_tex);
-        tex_manager.load_texture_GPU("assets/models/textures/WoodPanel.png", loader05.BSDF_list.at(loader05.gifn("white")).albedo_tex);
-            */
 
         //loader01.load_obj("just_a_plane.obj", { 0.f, 0.f, 0.f }, 500.f);
         //loader01.load_obj("diamond.obj", { 0.f, 0.05f, 50.f }, 10.f, loader05.gifm("glass"));
-        //loader01.load_obj("bunny.obj", { 0.f, 0.05f, 0.f }, 50.f);
-        loader01.load_obj("chess_moved.obj", { 0.f, 0.f, 0.f }, 50.f, BASE_BSDF, rs.CUDA_CAPABLE_GPU);
+        //loader01.load_obj("sphere.obj", { 0.f, 0.0f, 0.f }, 5.f);
+        //loader01.load_obj("fireplace_room_nolight.obj", { 0.f, 0.f, 0.f }, 20.f, rs.CUDA_CAPABLE_GPU);
         //loader01.load_obj("chess_moved.obj", { 200.f, 0.f, 0.f }, 50.f);
         //loader01.load_obj("cube.obj", { 50.f, 15.f, 0.f }, 10.f, loader05.gifn("jade"));
         //loader01.load_obj("ship.obj", { 0.f, 0.f, 0.f }, 10.f, loader05.gifn("white"));
         
-        loader01.send_to_scene(rs.scene);
-        //loader05.send_to_scene(rs.scene);
         
-        rs.scene.build_BVH();
         
         /////////////////////////////////////// envmap ///////////////////////////////////////
-        loader03.load_from_file("assets/hdris/qwantani_late_afternoon_2k.hdr");
-        rs.scene.environnement_map.strength = 1.f;
-        loader03.send_to_gpu(rs.scene.environnement_map, cudaFilterModeLinear);
+        //loader03.load_from_file("assets/hdris/qwantani_late_afternoon_2k.hdr");
+        
 
         /////////////////////////////////////// Volumes ///////////////////////////////////////
         //loader02.load_nvdb("volume.nvdb", rs.CUDA_CAPABLE_GPU);
         //loader02.load_nvdb("volume.nvdb",rs.CUDA_CAPABLE_GPU);
         //loader02.load_nvdb("smoke2.nvdb", rs.CUDA_CAPABLE_GPU);
         
-        loader02.volume_parameters(1, nanovdb::Vec3f(1.f), nanovdb::Vec3f(0.f), -0.4f, nanovdb::Vec3f(5.f, 1.f, 0.5f));
-        loader02.set_tranforms(1, 0.07f, nanovdb::Vec3f(0.f, 20.f, 0.f));
+        //loader02.volume_parameters(1, nanovdb::Vec3f(1.f), nanovdb::Vec3f(0.f), -0.4f, nanovdb::Vec3f(5.f, 1.f, 0.5f));
+        //loader02.set_tranforms(1, 0.07f, nanovdb::Vec3f(0.f, 20.f, 0.f));
         
         //loader02.volume_parameters(0, nanovdb::Vec3f(0.5f), nanovdb::Vec3f(0.5f), -0.4f, nanovdb::Vec3f(0.f));
         //loader02.set_tranforms(0, 0.1f, nanovdb::Vec3f(0.f, 0.f, 0.f));
 
-        loader02.volume_parameters(0, nanovdb::Vec3f(1.f), nanovdb::Vec3f(0.5f), -0.4f, nanovdb::Vec3f(0.));
-        loader02.set_tranforms(0, 0.1f, nanovdb::Vec3f(0.f, 20.f, 0.f));
+        //loader02.volume_parameters(0, nanovdb::Vec3f(1.f), nanovdb::Vec3f(1.f), 0.4f, nanovdb::Vec3f(0.));
+        //loader02.set_tranforms(0, 0.1f, nanovdb::Vec3f(0.f, 20.f, 0.f));
+        scene_loader_sdpt.set_GPU_Compat(rs.CUDA_CAPABLE_GPU);
+        if (!scene_loader_sdpt.load_sdpt("scene0.sdpt", &loader01, &loader02, &loader03)) std::cout << "Error : failed to load scene from .sdpt\n";
 
+        loader01.send_to_scene(rs.scene);
+        rs.scene.build_BVH();
         loader02.send_to_scene(rs.scene);
-       
+        loader03.send_to_gpu(rs.scene.environnement_map, cudaFilterModeLinear);
+        
+
+        
         rs.send_to_GPU_data();
         
         /////////////////////////////////////// Window and display ///////////////////////////////////////
@@ -383,7 +412,50 @@ namespace penguinPT {
                 rs.is_rendering = false;
                 rs.frame_index = 0;
             }
+            if (main_GUI_manager.find_button("Envmap:load").is_button_pressed(mouse_pos)) {
+                rs.clean_envmap();
+                loader03.clean();
+
+                std::string a;
+                std::cout << "Choose environnement map name (do not write extension): ";
+                std::cin >> a;
+
+                loader03.load_from_file("assets/hdris/" + a + ".hdr");
+                loader03.send_to_gpu(rs.scene.environnement_map, cudaFilterModeLinear);
+            }
+            if (main_GUI_manager.find_button("scene:new").is_button_pressed(mouse_pos)) {
+                rs.clean_envmap();
+                rs.clean_solid();
+                rs.clean_volumes();
+
+                loader01.clean();
+                loader03.clean();
+                loader02.clean();
+
+                tex_manager.clean();
+
+                //loader01.set_texture_manager(&tex_manager);
+
+                std::string a;
+                std::cout << "Choose file to load (with extension) : ";
+                std::cin >> a;
+
+                if (!scene_loader_sdpt.load_sdpt(a, &loader01, &loader02, &loader03)) std::cout << "Error : failed to load scene from .sdpt\n";
+
+                loader01.send_to_scene(rs.scene);
+                
+                rs.scene.build_BVH();
+                
+                loader02.send_to_scene(rs.scene);
+                
+                loader03.send_to_gpu(rs.scene.environnement_map, cudaFilterModeLinear);
+                
+                rs.send_to_GPU_data();
+                
+            }
             rs.mainCam.speed = main_GUI_manager.find_slider("camera:speed").update_slider(mouse_pos);
+            rs.scene.environnement_map.strength = main_GUI_manager.find_slider("Envmap:strength").update_slider(mouse_pos);
+            rs.scene.environnement_map.angle = main_GUI_manager.find_slider("Envmap:angle").update_slider(mouse_pos);
             if(!rs.is_rendering) rs.mainCam.zoom = main_GUI_manager.find_slider("camera:zoom").update_slider(mouse_pos);
 
             if (!rs.is_rendering) rs.frame_index = 0;
@@ -402,11 +474,14 @@ namespace penguinPT {
             rs.frame_index++;
         }
 
-        rs.clean();
-        loader03.clean();
+        rs.clean_all();
 
+        loader01.clean();
+        loader03.clean();
         loader02.clean();
+
         tex_manager.clean();
+
         endCuda(rs);
     }
 }

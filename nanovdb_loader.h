@@ -18,11 +18,13 @@ namespace penguinPT::loader {
 		void set_tranforms(unsigned int index, float scale_, nanovdb::Vec3f position_);
 		bool send_to_scene(Scene_data& scene);
 		void clean();
+		int gifn(std::string name);
 	};
 
 	void nanovdb_loader::clean() {
 		grid_names.clear();
 		handles_cpu.clear();
+		volumes_num = 0;
 	}
 	
 	bool nanovdb_loader::load_nvdb(std::string path, bool use_gpu) {
@@ -86,5 +88,11 @@ namespace penguinPT::loader {
 		}
 
 		vol_list.clear();
+	}
+	int nanovdb_loader::gifn(std::string name) {
+		for (int i = 0; i < grid_names.size(); i++) {
+			if (name == grid_names.at(i)) return i;
+		}
+		return -1;
 	}
 }
