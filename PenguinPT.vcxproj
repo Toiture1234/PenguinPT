@@ -22,27 +22,33 @@
     <CudaCompile Include="renderer.cu" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="api.h" />
-    <ClInclude Include="camera.h" />
-    <ClInclude Include="CPU_texture.h" />
-    <ClInclude Include="direct_lightning.h" />
-    <ClInclude Include="envmap.h" />
-    <ClInclude Include="GUI.h" />
-    <ClInclude Include="hdr_loader.h" />
-    <ClInclude Include="integrators.h" />
-    <ClInclude Include="intersectors.h" />
-    <ClInclude Include="Material.h" />
-    <ClInclude Include="Microfacet.h" />
-    <ClInclude Include="nanovdb_loader.h" />
-    <ClInclude Include="obj_loader.h" />
-    <ClInclude Include="pathtracer.h" />
-    <ClInclude Include="phase_function.h" />
-    <ClInclude Include="renderer_services.h" />
-    <ClInclude Include="SDPT_loader.h" />
-    <ClInclude Include="texture_manager.h" />
-    <ClInclude Include="Utility.h" />
-    <ClInclude Include="volumes.h" />
-    <ClInclude Include="usd_scene_loader.h" />
+    <ClInclude Include="ppt\core\BVH_loader.h" />
+    <ClInclude Include="ppt\core\camera.h" />
+    <ClInclude Include="ppt\core\Mesh.h" />
+    <ClInclude Include="ppt\core\mesh_manager.h" />
+    <ClInclude Include="ppt\core\preview.h" />
+    <ClInclude Include="ppt\core\scene.h" />
+    <ClInclude Include="ppt\cpu\CPU_texture.h" />
+    <ClInclude Include="ppt\core\direct_lightning.h" />
+    <ClInclude Include="ppt\core\envmap.h" />
+    <ClInclude Include="ppt\user\GUI.h" />
+    <ClInclude Include="ppt\loaders\hdr_loader.h" />
+    <ClInclude Include="ppt\core\integrators.h" />
+    <ClInclude Include="ppt\core\intersectors.h" />
+    <ClInclude Include="ppt\core\Material.h" />
+    <ClInclude Include="ppt\core\Microfacet.h" />
+    <ClInclude Include="ppt\loaders\nanovdb_loader.h" />
+    <ClInclude Include="ppt\loaders\obj_loader.h" />
+    <ClInclude Include="ppt\util\Matrix.h" />
+    <ClInclude Include="ppt\util\options.h" />
+    <ClInclude Include="ppt\core\pathtracer.h" />
+    <ClInclude Include="ppt\core\phase_function.h" />
+    <ClInclude Include="ppt\util\Utility.h" />
+    <ClInclude Include="ppt\core\renderer_services.h" />
+    <ClInclude Include="ppt\loaders\SDPT_loader.h" />
+    <ClInclude Include="ppt\core\texture_manager.h" />
+    <ClInclude Include="ppt\core\volumes.h" />
+    <ClInclude Include="ppt\wip\usd_scene_loader.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
@@ -133,7 +139,7 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions);SFML_STATIC</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(CudaToolkitIncludeDir);C:\openvdb-12.1.0\openvdb\nanovdb;$(SolutionDir)ext/SFML/include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(CudaToolkitIncludeDir);C:\openvdb-12.1.0\openvdb\nanovdb;$(SolutionDir)ext/SFML/include;$(SolutionDir)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -154,7 +160,7 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions);SFML_STATIC</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(CudaToolkitIncludeDir);C:\openvdb-12.1.0\openvdb\nanovdb;$(SolutionDir)ext/SFML/include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(CudaToolkitIncludeDir);C:\openvdb-12.1.0\openvdb\nanovdb;$(SolutionDir)ext/SFML/include;$(SolutionDir)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

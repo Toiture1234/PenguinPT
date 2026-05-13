@@ -1,4 +1,14 @@
+// Copyright 2026 Toiture1234
+// 
+// SPDX-License-Identifier : MIT
+
 #pragma once
+
+#include <ppt/util/options.h>
+#include <ppt/util/Utility.h>
+#include <ppt/core/volumes.h>
+#include <ppt/core/intersectors.h>
+#include <ppt/util/Matrix.h>
 
 namespace penguinPT::loader {
 	class nanovdb_loader {
@@ -16,7 +26,7 @@ namespace penguinPT::loader {
 		bool load_nvdb(std::string path, bool use_gpu);
 		void volume_parameters(unsigned int index, nanovdb::Vec3f s_T, nanovdb::Vec3f albedo_, float g_, nanovdb::Vec3f emission_, float dM = 1.f);
 		void set_tranforms(unsigned int index, float scale_, nanovdb::Vec3f position_);
-		bool send_to_scene(Scene_data& scene);
+		//bool send_to_scene(Scene_data& scene, bool is_gpu_available);
 		void clean();
 		int gifn(std::string name);
 	};
@@ -78,17 +88,20 @@ namespace penguinPT::loader {
 		if (index >= volumes_num) return;
 		Volume& candidate = vol_list.at(index);
 
-		candidate.scale = scale_;
-		candidate.position = position_;
+		//candidate.scale = scale_;
+		//candidate.position = position_;
+		candidate.transform_matrix = math::Mat4f::translation(position_) * math::Mat4f::scale(nanovdb::Vec3f(scale_));
+		candidate.transform_matrix_inverse = candidate.transform_matrix.inverse();
 	}
-	bool nanovdb_loader::send_to_scene(Scene_data& scene) {
-		scene.empty_volumes(volumes_num);
+	/*bool nanovdb_loader::send_to_scene(Scene_data& scene, bool is_gpu_available) {
+		scene.empty_volumes(volumes_num, is_gpu_available);
 		for (int i = 0; i < volumes_num; i++) {
 			scene.volumes[i] = vol_list.at(i);
 		}
 
 		vol_list.clear();
-	}
+		return true;
+	}*/
 	int nanovdb_loader::gifn(std::string name) {
 		for (int i = 0; i < grid_names.size(); i++) {
 			if (name == grid_names.at(i)) return i;

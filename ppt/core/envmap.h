@@ -1,4 +1,12 @@
+// Copyright 2026 Toiture1234
+// 
+// SPDX-License-Identifier : MIT
 #pragma once
+
+#include <ppt/util/options.h>
+#include <ppt/util/Utility.h>
+#include <ppt/cpu/CPU_texture.h>
+#include <ppt/loaders/hdr_loader.h>
 
 namespace penguinPT {
 	class Envmap {
@@ -97,8 +105,17 @@ void penguinPT::loader::envmap_loader::build_CDF() {
 }
 
 void penguinPT::loader::envmap_loader::clean() {
-	CUDA_CHECK(cudaFreeArray(data_cuda));
-	CUDA_CHECK(cudaFreeArray(data_cuda_cdf));
+	if (height == 0) return; // envmap is already cleaned
+	try
+	{
+		if (cudaFreeArray(data_cuda) != cudaSuccess || cudaFreeArray(data_cuda_cdf) != cudaSuccess)
+			throw std::exception("Warning : Error while freeing CUDA evmap, this message is normal if your device doesn't support CUDA.");
+	}
+	catch (const std::exception& e)
+	{
+		std::cerr << e.what() << "\"" << std::endl;
+	}
+	
 	free(data);
 	free(cdf);
 	data = nullptr, width = 0, height = 0, sum = 0.f, cdf = nullptr;
@@ -131,7 +148,7 @@ bool penguinPT::loader::envmap_loader::send_to_gpu(Envmap& source, cudaTextureFi
 			texDesc.readMode = cudaReadModeElementType;
 			texDesc.normalizedCoords = true;
 
-			cudaCreateTextureObject(&source.image, &resDesc, &texDesc, NULL);
+			if (cudaCreateTextureObject(&source.image, &resDesc, &texDesc, NULL) != cudaSuccess) throw std::exception("Failed to create value texture.");
 		}
 
 		// generate cdf texture
@@ -156,12 +173,11 @@ bool penguinPT::loader::envmap_loader::send_to_gpu(Envmap& source, cudaTextureFi
 			texDesc.readMode = cudaReadModeElementType;
 			texDesc.normalizedCoords = false;
 
-			cudaCreateTextureObject(&source.cdf, &resDesc, &texDesc, NULL);
+			if(cudaCreateTextureObject(&source.cdf, &resDesc, &texDesc, NULL) != cudaSuccess) throw std::exception("Failed to create cdf texture.");
 		}
 	}
 	catch (const std::exception& e) {
-		std::cerr << "FAILED TO SEND HDR TEXTURE TO ENVMAP OBJECT ON GPU SIDE.\"" << e.what() << "\"" << std::endl;
-		return false;
+		std::cerr << "Error : " << e.what() << "\"" << std::endl;
 	}
 
 	// CPU
@@ -291,7 +307,7 @@ __host__ inline nanovdb::Vec3f penguinPT::Envmap::sample_envmap_host(nanovdb::Ve
 
 	float sin_theta = sinf(theta);
 
-	L = nanovdb::Vec3f(-sin_theta * cosf(phi), cosf(theta), -sin_theta * sinf(phi));
+	L = nanovdb::Vec3f(sin_theta * cosf(phi), cosf(theta), sin_theta * sinf(phi));
 
 	return eval_envmap_host(L, pdf);
 }

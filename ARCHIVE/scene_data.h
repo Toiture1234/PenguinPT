@@ -1,202 +1,3 @@
-#pragma once
-
-#define BASE_BSDF 1 // pure black BSDF
-#define BSDF_TROUGH_ID 0 // for volumes
-
-#define MODE_TRIANGLE 1
-
-namespace penguinPT {
-	class hit_info {
-	public:
-		nanovdb::Vec3f normal;
-		nanovdb::Vec3f trueNormal;
-		float t;
-		float2 uv = make_float2(0.f, 0.f);
-		nanovdb::Vec3u debug;
-		int BSDF_index;
-
-		Volume* all_volumes[VOLUME_STACK_SIZE];
-		int nb_vol;
-
-		__hostdev__ hit_info() : normal(0.f), t(0.f), debug(0), BSDF_index(0), trueNormal(0.f), nb_vol(0) {}
-	};
-
-	class Sphere {
-	public:
-		nanovdb::Vec3f center;
-		float radius;
-
-		__hostdev__ Sphere() : center(0.f), radius(0.f) {}
-		__hostdev__ ~Sphere() {}
-	};
-	// simple triangle class, need to be smaller and have normals and verticies in an other array
-	class Triangle {
-	public:
-		nanovdb::Vec3f A, B, C, Origin;
-#if MODE_TRIANGLE == 0
-		nanovdb::Vec3f nA, nB, nC;
-		unsigned int BSDF_index;
-		__hostdev__ Triangle() : A(0.f), B(0.f), C(0.f), Origin(0.f), nA(0.f), nB(0.f), nC(0.f), BSDF_index(BASE_BSDF) {}
-		__hostdev__ Triangle(nanovdb::Vec3f a, nanovdb::Vec3f b, nanovdb::Vec3f c) : A(a), B(b), C(c), Origin(0.f), nA(0.f), nB(0.f), nC(0.f), BSDF_index(BASE_BSDF) {}
-#else 
-		__hostdev__ Triangle() : A(0.f), B(0.f), C(0.f), Origin(0.f) {}
-		__hostdev__ Triangle(nanovdb::Vec3f a, nanovdb::Vec3f b, nanovdb::Vec3f c) : A(a), B(b), C(c), Origin(0.f) {}
-#endif
-		__hostdev__ ~Triangle(){}
-	};
-	class Triangle_data {
-	public:
-		nanovdb::Vec3f nA, nB, nC;
-		float2 uvA, uvB, uvC;
-		unsigned int BSDF_index;
-		__hostdev__ Triangle_data() : nA(0.f), nB(0.f), nC(0.f), BSDF_index(BASE_BSDF), uvA({ 0.f, 0.f }), uvB({ 0.f, 0.f }), uvC({ 0.f, 0.f }) {};
-		__hostdev__ ~Triangle_data() {}
-	};
-	class BVH_node {
-	public:
-		nanovdb::Vec3f boxMin, boxMax;
-
-		int leftFirst, triangleCount;
-		__hostdev__ BVH_node() : boxMin(0.f), boxMax(0.f), leftFirst(0), triangleCount(0) {}
-		__hostdev__ ~BVH_node() {}
-	};
-	class AABB {
-	public:
-		nanovdb::Vec3f box_min = nanovdb::Vec3f(1e30f), box_max = nanovdb::Vec3f(-1e30f);
-		void grow(nanovdb::Vec3f p) {
-			//box_min = box_min.minComponent(p), box_max = box_max.maxComponent(p);
-			box_min = MIN_3(box_min, p);
-			box_max = MAX_3(box_max, p);
-		}
-		void grow(AABB& b) {
-			if (b.box_min[0] != 1e30f) {
-				grow(b.box_min);
-				grow(b.box_max);
-			}
-		}
-		float area() {
-			nanovdb::Vec3f e = box_max - box_min;
-			return e[0] * e[1] + e[1] * e[2] + e[2] * e[0];
-		}
-
-		__hostdev__ AABB() {}
-		__hostdev__ ~AABB() {}
-	};
-	class BIN {
-	public:
-		AABB bounds;
-		int triangle_count = 0;
-
-		__hostdev__ BIN() {}
-		__hostdev__ ~BIN() {}
-	};
-
-	// -----------------------------------------------------------------------
-	//                         Primitive  intersectors
-	// -----------------------------------------------------------------------
-
-
-	// basic triangle intersector that returns the distance of the surface, along as normal and uv coordinates
-	// returns -1 if no surface is hit
-	__hostdev__ float intersect_triangle(nanovdb::math::Ray<float> ray, nanovdb::Vec3f& normal, Triangle tri, float2& uv) {
-		nanovdb::Vec3f v1v0 = tri.B - tri.A;
-		nanovdb::Vec3f v2v0 = tri.C - tri.A;
-		nanovdb::Vec3f rov0 = ray.eye() - tri.A;
-		nanovdb::Vec3f  n = v1v0.cross(v2v0);
-		nanovdb::Vec3f  q = rov0.cross(ray.dir());
-		float d = 1.0f / ray.dir().dot(n);
-		float u = d * (-q).dot(v2v0);
-		float v = d * q.dot(v1v0);
-		float t = d * (-n).dot(rov0);
-		if (u < 0.0f || v < 0.0f || (u + v) > 1.0f) t = -1.0f;
-		float w = 1.0f - u - v;
-
-		uv = make_float2(u, v);
-		normal = (tri.B - tri.A).cross(tri.C - tri.A).normalize();
-#if MODE_TRIANGLE == 0
-		normal = tri.nA.dot(tri.nA) > 0.f ? (tri.nA * w + tri.nB * u + tri.nC * v).normalize() : normal;
-#endif
-		return t;
-	}
-	__hostdev__ bool intersect_triangle_uv(nanovdb::math::Ray<float> ray, Triangle& tri, float2& uv, float& t_0) {
-		nanovdb::Vec3f v1v0 = tri.B - tri.A;
-		nanovdb::Vec3f v2v0 = tri.C - tri.A;
-		nanovdb::Vec3f rov0 = ray.eye() - tri.A;
-		nanovdb::Vec3f  n = v1v0.cross(v2v0);
-		nanovdb::Vec3f  q = rov0.cross(ray.dir());
-		float d = 1.0f / ray.dir().dot(n);
-		float u = d * (-q).dot(v2v0);
-		float v = d * q.dot(v1v0);
-		float t = d * (-n).dot(rov0);
-		if (u < 0.0f || v < 0.0f || (u + v) > 1.0f || t > t_0 || t < SAFE_OFFSET) return false;
-		float w = 1.0f - u - v;
-
-		uv = make_float2(u, v);
-		t_0 = t;
-		//normal = (tri.B - tri.A).cross(tri.C - tri.A).normalize();
-		//normal = tri.nA.dot(tri.nA) > 0.f ? (tri.nA * w + tri.nB * u + tri.nC * v).normalize() : normal;
-		return true;
-	}
-	// triangle intersector that takes a distance input and replace it if the ray collides with triangle and 
-	// if the distance to that triangle is smaller than the previous distance
-	__hostdev__ bool intersect_triangle_replace(nanovdb::math::Ray<float> ray, nanovdb::Vec3f& normal, nanovdb::Vec3f& trueNormal, Triangle tri, float2& uv, float& t_out, int& BSDF_i) {
-		nanovdb::Vec3f v1v0 = tri.B - tri.A;
-		nanovdb::Vec3f v2v0 = tri.C - tri.A;
-		nanovdb::Vec3f rov0 = ray.eye() - tri.A;
-		nanovdb::Vec3f  n = v1v0.cross(v2v0);
-		nanovdb::Vec3f  q = rov0.cross(ray.dir());
-		float d = 1.0f / ray.dir().dot(n);
-		float u = d * (-q).dot(v2v0);
-		float v = d * q.dot(v1v0);
-		float t = d * (-n).dot(rov0);
-		if (u < 0.0f || v < 0.0f || (u + v) > 1.0f || t > t_out || t < SAFE_OFFSET) return false;
-		float w = 1.f - u - v;
-
-		uv = make_float2(u, v);
-		t_out = t;
-		trueNormal = (tri.B - tri.A).cross(tri.C - tri.A).normalize();
-		float u_dot = trueNormal.dot(ray.dir());
-		float mult = -SIGN(u_dot);
-#if MODE_TRIANGLE == 0
-		normal = (tri.nA.dot(tri.nA) > 0.f ? (tri.nA * w + tri.nB * u + tri.nC * v).normalize() : trueNormal) * mult;
-		BSDF_i = tri.BSDF_index;
-#else 
-		normal = trueNormal;
-#endif
-		return true;
-	}
-
-	// box intersector, returns the nearest distance to the ray, returns 1e30 if the ray is inside box
-	__hostdev__ inline float boxIntersect_float(nanovdb::math::Ray<float> ray, nanovdb::Vec3f aabbMin, nanovdb::Vec3f aabbMax) {
-		nanovdb::Vec3f planesMin = -1.0 * (ray.eye() - aabbMin) * ray.invDir();
-		nanovdb::Vec3f planesMax = -1.0 * (ray.eye() - aabbMax) * ray.invDir();
-
-		nanovdb::Vec3f planesNear = MIN_3(planesMin, planesMax);
-		nanovdb::Vec3f planesFar = MAX_3(planesMin, planesMax);
-
-		float tNear = planesNear.max();
-		float tFar = planesFar.min();
-
-		if (tFar > tNear && tFar > 0.f) return tNear;
-		else return 1e30f;
-	}
-	__hostdev__ inline bool boxIntersect_replace(nanovdb::math::Ray<float> ray, nanovdb::Vec3f aabbMin, nanovdb::Vec3f aabbMax, nanovdb::Vec3f& normal, float& t_out, bool& isInside) {
-		nanovdb::Vec3f planesMin = -1.0 * (ray.eye() - aabbMin) * ray.invDir();
-		nanovdb::Vec3f planesMax = -1.0 * (ray.eye() - aabbMax) * ray.invDir();
-
-		nanovdb::Vec3f planesNear = MIN_3(planesMin, planesMax);
-		nanovdb::Vec3f planesFar = MAX_3(planesMin, planesMax);
-
-		float tNear = planesNear.max();
-		float tFar = planesFar.min();
-
-		if (tFar < 0.f) return false;
-		isInside = tNear < 0.f;
-		normal = { 0.f, 0.f, 0.f }; // need to change this !
-		t_out = isInside ? tFar : tNear;
-
-		return true;
-	}
 
 	// Scene class, contains an array of triangles and support for BVH, be carefull if you use the BVH to have initialized triangles
 	class Scene_data {
@@ -204,16 +5,17 @@ namespace penguinPT {
 		__hostdev__ Scene_data() : triangles(nullptr),
 			num_of_triangles(0),
 			tr_data(nullptr),
-			triangle_indicies(nullptr), 
-			nodes(nullptr), 
-			root_node_idx(0), 
-			nodes_used(1), 
-			bsdf_list(nullptr), 
-			volumes(nullptr), 
+			triangle_indicies(nullptr),
+			nodes(nullptr),
+			root_node_idx(0),
+			nodes_used(1),
+			bsdf_list(nullptr),
+			volumes(nullptr),
 			num_of_volumes(0),
-			num_of_bsdf(0) {}
+			num_of_bsdf(0) {
+		}
 
-		__hostdev__ Scene_data(int n_tr) : num_of_triangles(n_tr),
+		__hostdev__ Scene_data(int n_tr, bool is_gpu_available) : num_of_triangles(n_tr),
 			root_node_idx(0),
 			nodes_used(1),
 			bsdf_list(nullptr),
@@ -221,10 +23,18 @@ namespace penguinPT {
 			num_of_volumes(0),
 			num_of_bsdf(0)
 		{
-			triangles = (Triangle*)malloc(n_tr * sizeof(Triangle));
-			tr_data = (Triangle_data*)malloc(n_tr * sizeof(Triangle_data));
-			triangle_indicies = (unsigned int*)malloc(n_tr * sizeof(unsigned int));
-			nodes = (BVH_node*)malloc((2 * n_tr - 1) * sizeof(BVH_node)); // maybe too much, to rewind when making BVH
+			if (is_gpu_available) {
+				CUDA_CHECK(cudaMallocManaged((void**)&triangles, n_tr * sizeof(Triangle)));
+				CUDA_CHECK(cudaMallocManaged((void**)&tr_data, n_tr * sizeof(Triangle_data)));
+				CUDA_CHECK(cudaMallocManaged((void**)&triangle_indicies, n_tr * sizeof(unsigned int)));
+				CUDA_CHECK(cudaMallocManaged((void**)&nodes, (2 * n_tr - 1) * sizeof(BVH_node)));
+			}
+			else {
+				triangles = (Triangle*)malloc(n_tr * sizeof(Triangle));
+				tr_data = (Triangle_data*)malloc(n_tr * sizeof(Triangle_data));
+				triangle_indicies = (unsigned int*)malloc(n_tr * sizeof(unsigned int));
+				nodes = (BVH_node*)malloc((2 * n_tr - 1) * sizeof(BVH_node));
+			}
 		}
 		__hostdev__ ~Scene_data() {}
 
@@ -255,7 +65,7 @@ namespace penguinPT {
 		void send_to_gpu_solid() {
 			if (num_of_triangles != 0) {
 				// create temporary buffers
-				Triangle* temp_triangles = triangles;
+				/*Triangle* temp_triangles = triangles;
 				Triangle_data* temp_tr_data = tr_data;
 				BVH_node* temp_nodes = nodes;
 				unsigned int* temp_triangle_indicies = triangle_indicies;
@@ -265,38 +75,40 @@ namespace penguinPT {
 				CUDA_CHECK(cudaMalloc((void**)&tr_data, num_of_triangles * sizeof(Triangle_data)));
 				CUDA_CHECK(cudaMalloc((void**)&nodes, (2 * num_of_triangles - 1) * sizeof(BVH_node)));
 				CUDA_CHECK(cudaMalloc((void**)&triangle_indicies, num_of_triangles * sizeof(unsigned int)));
-			
+
 				// Send data to gpu
 				CUDA_CHECK(cudaMemcpy(triangles, temp_triangles, num_of_triangles * sizeof(Triangle), cudaMemcpyHostToDevice));
 				CUDA_CHECK(cudaMemcpy(tr_data, temp_tr_data, num_of_triangles * sizeof(Triangle_data), cudaMemcpyHostToDevice));
 				CUDA_CHECK(cudaMemcpy(nodes, temp_nodes, (2 * num_of_triangles - 1) * sizeof(BVH_node), cudaMemcpyHostToDevice));
 				CUDA_CHECK(cudaMemcpy(triangle_indicies, temp_triangle_indicies, num_of_triangles * sizeof(unsigned int), cudaMemcpyHostToDevice));
-			
+
 				// delete temporary buffers
 				free(temp_triangles);
 				free(temp_nodes);
 				free(temp_triangle_indicies);
-				free(temp_tr_data);
+				free(temp_tr_data);*/
+
+				// ensure GPU will be used
 			}
 		}
 		void send_to_gpu_volumes() {
 			if (num_of_volumes != 0) {
-				Volume* temp_volumes = volumes;
+				/*Volume* temp_volumes = volumes;
 
 				cudaMalloc((void**)&volumes, num_of_volumes * sizeof(Volume));
 				cudaMemcpy(volumes, temp_volumes, num_of_volumes * sizeof(Volume), cudaMemcpyHostToDevice);
 
-				free(temp_volumes);
+				free(temp_volumes);*/
 			}
 		}
 		void send_to_gpu_BSDF() {
 			if (num_of_bsdf != 0) {
-				principled_BSDF* temp_bsdf = bsdf_list;
+				/*principled_BSDF* temp_bsdf = bsdf_list;
 
 				CUDA_CHECK(cudaMalloc((void**)&bsdf_list, num_of_bsdf * sizeof(principled_BSDF)));
 				CUDA_CHECK(cudaMemcpy(bsdf_list, temp_bsdf, num_of_bsdf * sizeof(principled_BSDF), cudaMemcpyHostToDevice));
 
-				free(temp_bsdf);
+				free(temp_bsdf);*/
 			}
 		}
 
@@ -308,7 +120,7 @@ namespace penguinPT {
 		void subdivide(int node_idx);
 
 		// create volumes
-		void empty_volumes(int v_num);
+		void empty_volumes(int v_num, bool is_gpu_available);
 
 		// surface only
 		__hostdev__ bool intersectScene_BVH(nanovdb::math::Ray<float> ray, hit_info& info);
@@ -382,24 +194,24 @@ namespace penguinPT {
 				bMin = std::min(bMin, tri.Origin[a]);
 				bMax = std::max(bMax, tri.Origin[a]);
 			}
-			
+
 			// bins
 			BIN bin[NUM_TEST_SPLIT];
 			float scale = NUM_TEST_SPLIT / (bMax - bMin);
 			for (unsigned int i = 0; i < node.triangleCount; i++) {
 				Triangle& tri = triangles[triangle_indicies[node.leftFirst + i]];
-				int binIDX = CLAMP((int)( (tri.Origin[a] - bMin) * scale), 0, NUM_TEST_SPLIT - 1);
+				int binIDX = CLAMP((int)((tri.Origin[a] - bMin) * scale), 0, NUM_TEST_SPLIT - 1);
 				bin[binIDX].triangle_count++;
 				bin[binIDX].bounds.grow(tri.A);
 				bin[binIDX].bounds.grow(tri.B);
 				bin[binIDX].bounds.grow(tri.C);
 			}
-			
+
 			float leftArea[NUM_TEST_SPLIT - 1], rightArea[NUM_TEST_SPLIT - 1];
 			int leftCount[NUM_TEST_SPLIT - 1], rightCount[NUM_TEST_SPLIT - 1];
 			AABB leftBox, rightBox;
 			int leftSum = 0, rightSum = 0;
-			for (int i = 0; i < NUM_TEST_SPLIT - 1; i++) 
+			for (int i = 0; i < NUM_TEST_SPLIT - 1; i++)
 			{
 				leftSum += bin[i].triangle_count;
 				leftCount[i] = leftSum;
@@ -411,9 +223,9 @@ namespace penguinPT {
 				rightBox.grow(bin[NUM_TEST_SPLIT - 1 - i].bounds);
 				rightArea[NUM_TEST_SPLIT - 2 - i] = rightBox.area();
 			}
-			
+
 			scale = (float)(bMax - bMin) / (float)NUM_TEST_SPLIT;
-			for (int i = 0; i < NUM_TEST_SPLIT - 1; i++) 
+			for (int i = 0; i < NUM_TEST_SPLIT - 1; i++)
 			{
 				float planeCost = leftCount[i] * leftArea[i] + rightCount[i] * rightArea[i];
 				if (planeCost < bCost) {
@@ -480,7 +292,7 @@ namespace penguinPT {
 
 		update_nodes_bounds(leftChildIdx);
 		update_nodes_bounds(rightChildIdx);
-		
+
 		subdivide(leftChildIdx);
 		subdivide(rightChildIdx);
 	}
@@ -502,7 +314,7 @@ namespace penguinPT {
 
 		float2 uv = make_float2(0.f, 0.f);
 		unsigned int index = 0;
-		
+
 		while (stackIdx > 0)
 		{
 			BVH_node node = nodes[stack[--stackIdx]];
@@ -551,13 +363,13 @@ namespace penguinPT {
 			float u = uv.x;
 			float v = uv.y;
 			float w = 1.f - u - v;
-			
+
 			info.normal = (intersected.B - intersected.A).cross(intersected.C - intersected.A).normalize();
 			float u_dot = info.normal.dot(ray.dir());
 			float mult = -SIGN(u_dot);
 			info.normal = (intersected_data.nA.dot(intersected_data.nA) > 0.f ? (intersected_data.nA * w + intersected_data.nB * u + intersected_data.nC * v).normalize() : info.normal) * mult;
 			info.BSDF_index = intersected_data.BSDF_index;
-			
+
 			// blend info.uv between everything
 			info.uv = make_float2(intersected_data.uvA.x * w + intersected_data.uvB.x * u + intersected_data.uvC.x * v,
 				intersected_data.uvA.y * w + intersected_data.uvB.y * u + intersected_data.uvC.y * v);
@@ -571,7 +383,7 @@ namespace penguinPT {
 
 		// basic iterator loop, no BVH now, maybe later
 		for (unsigned int i = 0; i < num_of_volumes; i++) {
-			if (volumes[i].intersect_volume_replace(ray, info.t, info.normal, info.all_volumes, info.nb_vol)) { 
+			if (volumes[i].intersect_volume_replace(ray, info.t, info.normal, info.all_volumes, info.nb_vol)) {
 				hit = true;
 				info.BSDF_index = BSDF_TROUGH_ID;
 			}
@@ -583,14 +395,18 @@ namespace penguinPT {
 
 		// volumes intersection
 		if (intersectScene_volumes(ray, info)) hit = true;
+
 		return hit;
 	}
 
-	void Scene_data::empty_volumes(int v_num) {
-		if (num_of_volumes != 0) free(volumes);
-
-		volumes = (Volume*)malloc(v_num * sizeof(Volume));
+	void Scene_data::empty_volumes(int v_num, bool is_gpu_available) {
+		if (num_of_volumes != 0) {
+			if (is_gpu_available) { CUDA_CHECK(cudaFree(volumes)) }
+			else free(volumes);
+		}
+		if (v_num != 0) {
+			if (is_gpu_available) { CUDA_CHECK(cudaMallocManaged((void**)&volumes, v_num * sizeof(Volume))) }
+			else volumes = (Volume*)malloc(v_num * sizeof(Volume));
+		}
 		num_of_volumes = v_num;
 	}
-
-}

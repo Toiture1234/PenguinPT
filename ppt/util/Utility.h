@@ -1,4 +1,54 @@
+// Copyright 2026 Toiture1234
+// 
+// SPDX-License-Identifier : MIT
+
 #pragma once
+
+#include <cuda_runtime.h>
+#include <device_launch_parameters.h>
+#include <curand_kernel.h>
+
+// nano VDB
+#include <nanovdb/io/IO.h>
+#include <nanovdb/cuda/DeviceBuffer.h>
+#include <nanovdb/tools/GridBuilder.h>
+#include <nanovdb/math/Ray.h>
+#include <nanovdb/math/HDDA.h>
+
+// openVDB
+
+// main libraries
+#include <stdio.h>
+#include <iostream>
+#include <vector>
+#include <string>
+#include <random>
+#include <fstream>
+#include <filesystem>
+#include <exception>
+
+#include <ppt/util/options.h>
+
+typedef curandStatePhilox4_32_10_t Rand_state;
+#define randC(state) curand_uniform(state)
+#define rand01 ((float)rand() / (float)RAND_MAX)
+
+
+#define __hostdev__ __device__ __host__
+
+#define PI 3.1415926535897932384626433832795f
+#define TWO_PI 6.283185307179586476925286766559f
+#define INV_TWO_PI 0.15915494309189533576888376337251f
+#define INV_PI 0.31830988618379067153776752674503f
+#define INV_4_PI 0.07957747154594766788444188168626f
+#define PI_OVER_4 0.78539816339744830961566084581988f
+#define PI_OVER_2 1.5707963267948966192313216916398f
+
+
+
+// NEED TO MOVE THIS TO UTILITY
+#define CUDA_CHECK(expr) { cudaError_t err = expr; if(err != CUDA_SUCCESS) { printf("CUDA ERROR AT LINE %i IN %s : %s \n", __LINE__, __FILE__, cudaGetErrorString(err)); exit(99); }}
+
 
 template <typename vec3T> __hostdev__ inline void safe_both(vec3T normal, nanovdb::math::Ray<float>& ray, bool through) {
 	float k = through ? -1.f : 1.f;
@@ -18,6 +68,12 @@ template <typename vec3T> __hostdev__ inline void safe_both(vec3T normal, nanovd
 #define gotoxy(x, y) printf("%c[%d;%df", 0x1B, y, x);
 
 namespace penguinPT::util {
+	template <typename T>
+	__hostdev__ inline void swapCUDA(T& a, T& b) {
+		T temp = a;
+		a = b;
+		b = temp;
+	}
 	__hostdev__ inline float clamp(float a, float x, float y) {
 		return a < x ? x : a > y ? y : a;
 	}

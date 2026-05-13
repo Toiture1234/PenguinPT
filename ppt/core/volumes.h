@@ -1,4 +1,12 @@
+// Copyright 2026 Toiture1234
+// 
+// SPDX-License-Identifier : MIT
+
 #pragma once
+
+#include <ppt/util/options.h>
+#include <ppt/util/Utility.h>
+#include <ppt/util/Matrix.h>
 
 #define DT_SAMPLES 1024
 
@@ -15,13 +23,16 @@ namespace penguinPT {
 		float g;
 
 		// transform
-		float scale = 1.f;
-		nanovdb::Vec3f position = { 0.f, 0.f, 0.f };
+		//float scale = 1.f;
+		//nanovdb::Vec3f position = { 0.f, 0.f, 0.f };
+		math::Mat4f transform_matrix;
+		math::Mat4f transform_matrix_inverse;
 
 		__hostdev__ Volume() : density_grid(nullptr), sigma_t(0.f), albedo(0.f), g(0.f), emission(0.f), density_mult(1.f) {}
 
 		__hostdev__ bool intersect_volume_replace(nanovdb::math::Ray<float> ray, float& t_out, nanovdb::Vec3f& normal, Volume** all_volumes, int& nb_vol) {
-			ray.setEye((ray.eye() - position) / scale);
+			//ray.setEye((ray.eye() - position) / scale);
+			ray = transform_matrix_inverse.transformRay(ray);
 			if (!ray.clip(density_grid->worldBBox())) return false;
 			float t0 = ray.t0();
 			float t1 = ray.t1();
@@ -31,7 +42,7 @@ namespace penguinPT {
 				all_volumes[nb_vol] = this;
 				nb_vol++;
 			}
-			float t = (inside ? t1 : t0) * scale;
+			float t = (inside ? t1 : t0);
 			if (t > t_out || t < 0.001f) return false;
 			t_out = t;
 			normal = -ray.dir();
@@ -40,15 +51,16 @@ namespace penguinPT {
 		}
 		__hostdev__ float get_density(nanovdb::Vec3f pos, nanovdb::Vec3f offset) {
 			auto acc = density_grid->getAccessor();
-			pos -= position;
-			pos /= scale;
+			//pos -= position;
+			//pos /= scale;
+			pos = transform_matrix_inverse.transformPoint(pos);
 			nanovdb::Vec3f Ipos = density_grid->worldToIndexF(pos);
 			Ipos += offset;
 			return fminf(acc.getValue(nanovdb::Coord(Ipos[0], Ipos[1], Ipos[2])) * density_mult, 1.f);
 		}
 
 		__device__ bool delta_tracking(nanovdb::math::Ray<float> ray, float& t_out, Rand_state& state);
-		__hostdev__ bool is_point_inside(nanovdb::Vec3f pt) const ;
+		__hostdev__ bool is_point_inside(nanovdb::Vec3f pt) ;
 	};
 
 	__device__ bool Volume::delta_tracking(nanovdb::math::Ray<float> ray, float& t_out, Rand_state& state) {
@@ -70,9 +82,10 @@ namespace penguinPT {
 		}
 		return false;
 	}
-	__hostdev__ bool Volume::is_point_inside(nanovdb::Vec3f pt) const {
-		pt -= position;
-		pt /= scale;
+	__hostdev__ bool Volume::is_point_inside(nanovdb::Vec3f pt) {
+		//pt -= position;
+		//pt /= scale;
+		pt = transform_matrix_inverse.transformPoint(pt);
 		return density_grid->mWorldBBox.isInside(pt);
 	}
 }

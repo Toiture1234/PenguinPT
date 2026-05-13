@@ -1,4 +1,15 @@
+// Copyright 2026 Toiture1234
+// 
+// SPDX-License-Identifier : MIT
+
 #pragma once
+
+#include <ppt/util/options.h>
+#include <ppt/util/Utility.h>
+#include <ppt/core/phase_function.h>
+#include <ppt/core/renderer_services.h>
+#include <ppt/core/direct_lightning.h>
+#include <ppt/core/integrators.h>
 
 namespace penguinPT {
 	__device__ nanovdb::Vec3f volume_pathtrace_device_spectral(renderer_services& rs, nanovdb::math::Ray<float> ray) {
@@ -22,7 +33,8 @@ namespace penguinPT {
 			hit_info info;
 			info.t = MAX_DISTANCE;
 
-			bool hit = rs.scene.intersectScene_full(ray, info);
+			//bool hit = rs.scene.intersectScene_full(ray, info);
+			bool hit = rs.scene.intersectScene(ray, info);
 			bool through = false;
 
 			if (!hit) {
@@ -217,7 +229,8 @@ namespace penguinPT {
 			hit_info info;
 			info.t = MAX_DISTANCE;
 
-			bool hit = rs.scene.intersectScene_full(ray, info);
+			//bool hit = rs.scene.intersectScene_full(ray, info);
+			bool hit = rs.scene.intersectScene(ray, info);
 			bool through = false;
 
 			if (!hit) {

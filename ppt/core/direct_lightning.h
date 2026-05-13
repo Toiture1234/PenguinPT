@@ -1,4 +1,11 @@
+// Copyright 2026 Toiture1234
+// 
+// SPDX-License-Identifier : MIT
 #pragma once
+
+#include <ppt/util/options.h>
+#include <ppt/util/Utility.h>
+#include <ppt/core/renderer_services.h>
 
 namespace penguinPT {
 
@@ -14,7 +21,8 @@ namespace penguinPT {
 			hit_info info;
 			info.t = MAX_DISTANCE;
 
-			bool hit = rs.scene.intersectScene_full(ray, info);
+			//bool hit = rs.scene.intersectScene_full(ray, info);
+			bool hit = rs.scene.intersectScene(ray, info);
 
 			if (!hit) return T;
 
@@ -68,7 +76,8 @@ namespace penguinPT {
 			hit_info info;
 			info.t = MAX_DISTANCE;
 
-			bool hit = rs.scene.intersectScene_full(ray, info);
+			//bool hit = rs.scene.intersectScene_full(ray, info);
+			bool hit = rs.scene.intersectScene(ray, info);
 
 			if (!hit) return T;
 

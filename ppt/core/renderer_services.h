@@ -1,4 +1,15 @@
+// Copyright 2026 Toiture1234
+// 
+// SPDX-License-Identifier : MIT
+
 #pragma once
+
+#include <ppt/util/options.h>
+#include <ppt/util/Utility.h>
+
+#include <ppt/core/camera.h>
+#include <ppt/core/intersectors.h>
+#include <ppt/core/scene.h>
 
 #define WINDOW_RES_X 1920
 #define WINDOW_RES_Y 1080
@@ -19,7 +30,8 @@ namespace penguinPT {
 
 		camera mainCam;
 
-		Scene_data scene;
+		//Scene_data scene;
+		Scene scene;
 		
 		__hostdev__ renderer_services() {}
 		__hostdev__ ~renderer_services() {}
@@ -72,14 +84,14 @@ namespace penguinPT {
 		}
 
 		void send_to_GPU_data() {
-			if (!CUDA_CAPABLE_GPU) return;
+			/*if (!CUDA_CAPABLE_GPU) return;
 			scene.send_to_gpu_solid();
 			scene.send_to_gpu_volumes();
-			scene.send_to_gpu_BSDF();
+			scene.send_to_gpu_BSDF();*/
 		}
 		// partial cleaning : only cleans solid scene data
 		void clean_solid() {
-			if (CUDA_CAPABLE_GPU) {
+			/*if (CUDA_CAPABLE_GPU) {
 				if (scene.num_of_bsdf != 0) CUDA_CHECK(cudaFree(scene.bsdf_list));
 				if (scene.num_of_triangles != 0) {
 					CUDA_CHECK(cudaFree(scene.triangles));
@@ -96,27 +108,32 @@ namespace penguinPT {
 			scene.num_of_bsdf = 0;
 			scene.num_of_triangles = 0;
 			scene.nodes_used = 0;
+			*/
+			scene.clearTLAS(CUDA_CAPABLE_GPU);
+			scene.clearBSDFList(CUDA_CAPABLE_GPU);
 		}
 
 		// partial cleaning : only cleans volume scene data
 		void clean_volumes() {
-			if (CUDA_CAPABLE_GPU) {
+			/*if (CUDA_CAPABLE_GPU) {
 				if (scene.num_of_volumes != 0) CUDA_CHECK(cudaFree(scene.volumes));
 			}
 			else {
 				if (scene.num_of_volumes != 0) free(scene.volumes);
 			}
-			scene.num_of_volumes = 0;
+			scene.num_of_volumes = 0;*/
+			scene.clearVolumeList(CUDA_CAPABLE_GPU);
 		}
 
 		// partial cleaning : only cleans envmap scene data
 		// this function only affects CUDA and CPU data need to be deleted from envmap_loader::clean()
 		void clean_envmap() {
-			if (CUDA_CAPABLE_GPU) {
+			/*if (CUDA_CAPABLE_GPU) {
 				// free envmap
 				CUDA_CHECK(cudaDestroyTextureObject(scene.environnement_map.image));
 				CUDA_CHECK(cudaDestroyTextureObject(scene.environnement_map.cdf));
-			}
+			}*/
+			scene.clearEnvmap(CUDA_CAPABLE_GPU);
 		}
 
 		void clean_all() {
@@ -126,7 +143,5 @@ namespace penguinPT {
 			free(host_pixel_buffer);
 			std::cout << "Renderer service freed.\n";
 		}
-
-		
 	};
 }

@@ -1,4 +1,14 @@
+// Copyright 2026 Toiture1234
+// 
+// SPDX-License-Identifier : MIT
+
 #pragma once
+
+#include <ppt/util/options.h>
+#include <ppt/util/Utility.h>
+#include <ppt/loaders/obj_loader.h>
+#include <ppt/loaders/nanovdb_loader.h>
+#include <ppt/core/envmap.h>
 
 namespace penguinPT::loader {
 	class SDPT_Loader {
@@ -7,6 +17,7 @@ namespace penguinPT::loader {
 		~SDPT_Loader() {}
 
 		bool load_sdpt(std::string path, obj_loader* obj_ref, nanovdb_loader* nvdb_ref, envmap_loader* envmap_ref);
+		void forceLoad(std::string path, obj_loader* obj_ref, nanovdb_loader* nvdb_ref, envmap_loader* envmap_ref);
 		void set_GPU_Compat(bool gpu) { GPU_available = gpu; };
 	private:
 		bool GPU_available = true;
@@ -44,8 +55,8 @@ bool penguinPT::loader::SDPT_Loader::load_sdpt(std::string path, obj_loader* obj
 					float d = std::stof(tokens.at(21));
 
 					if (!nvdb_ref->load_nvdb(name, GPU_available)) return false;
-					nvdb_ref->set_tranforms(nvdb_ref->gifn(name), size[0], position);
-					nvdb_ref->volume_parameters(nvdb_ref->gifn(name), sigma_t, albedo, g, emission, d);
+					nvdb_ref->set_tranforms(nvdb_ref->volumes_num - 1, size[0], position);
+					nvdb_ref->volume_parameters(nvdb_ref->volumes_num - 1, sigma_t, albedo, g, emission, d);
 				}
 				else if (tokens.at(0) == "envmap") {
 					std::string name = file_util::remove_quote(tokens.at(1));
@@ -58,4 +69,17 @@ bool penguinPT::loader::SDPT_Loader::load_sdpt(std::string path, obj_loader* obj
 		return true;
 	}
 	return false;
+}
+void penguinPT::loader::SDPT_Loader::forceLoad(std::string path, obj_loader* obj_ref, nanovdb_loader* nvdb_ref, envmap_loader* envmap_ref) {
+	if (!load_sdpt(path, obj_ref, nvdb_ref, envmap_ref)) {
+		std::cout << "Failed to load scene " << path << ".\n";
+		obj_ref->clean();
+		nvdb_ref->clean();
+		envmap_ref->clean();
+
+		std::cout << "Choose scene to load (with extension) : ";
+		std::cin >> path;
+
+		forceLoad(path, obj_ref, nvdb_ref, envmap_ref);
+	}
 }

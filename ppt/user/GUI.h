@@ -1,4 +1,13 @@
+// Copyright 2026 Toiture1234
+// 
+// SPDX-License-Identifier : MIT
+
 #pragma once
+
+#include <SFML/Graphics.hpp>
+
+#include <ppt/util/options.h>
+#include <ppt/util/Utility.h>
 
 namespace penguinPT::GUI {
 	namespace Typography {

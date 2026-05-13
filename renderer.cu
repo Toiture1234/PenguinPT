@@ -1,4 +1,22 @@
-#include "api.h"
+// Copyright 2026 Toiture1234
+// 
+// SPDX-License-Identifier : MIT
+
+#include <SFML/Graphics.hpp>
+
+#include <ppt/util/options.h>
+#include <ppt/util/Utility.h>
+
+#include <ppt/core/renderer_services.h>
+#include <ppt/core/pathtracer.h>
+#include <ppt/loaders/obj_loader.h>
+#include <ppt/loaders/nanovdb_loader.h>
+#include <ppt/loaders/SDPT_loader.h>
+#include <ppt/user/GUI.h>
+
+#include <ppt/core/Mesh.h>
+#include <ppt/util/Matrix.h>
+#include <ppt/core/mesh_manager.h>
 
 namespace penguinPT {
     __shared__ uint8_t* device_pixel_buffer;
@@ -33,8 +51,8 @@ namespace penguinPT {
         
         if(rs.is_rendering)
             return volume_pathtrace_device_spectral(rs, ray);
-        if (rs.scene.intersectScene_full(ray, info)) {
-            //return info.normal.dot(-ray.dir()) * rs.scene.bsdf_list[info.BSDF_index].albedo;
+        //if (rs.scene.intersectScene_full(ray, info)) {
+        if (rs.scene.intersectScene(ray, info)) {
             principled_BSDF& surface_bsdf = rs.scene.bsdf_list[info.BSDF_index];
 
             // normal modification
@@ -52,7 +70,8 @@ namespace penguinPT {
         if (rs.is_rendering)
             return volume_pathtrace_host_spectral(rs, ray);
 
-        if (rs.scene.intersectScene_full(ray, info)) {
+        //if (rs.scene.intersectScene_full(ray, info)) {
+        if (rs.scene.intersectScene(ray, info)) {
             return info.normal.dot(-ray.dir()) * rs.scene.bsdf_list[info.BSDF_index].albedo;
         }
         float pdf_e;
@@ -84,6 +103,8 @@ namespace penguinPT {
         nanovdb::math::Ray<float> first_ray = { rs.mainCam.position, rayDirection };
 
         nanovdb::Vec3f color = getColor(rs, first_ray, make_float2(uvX, uvY));
+
+        if (isnan(color[0]) || isnan(color[1]) || isnan(color[2])) return;
 
         if (rs.frame_index == 0)
             dev_acc_buffer[idx] = color;
@@ -325,8 +346,8 @@ namespace penguinPT {
         main_GUI_manager.find_text_zone("Envmap:angle:title").set_string("Envmap angle");
         main_GUI_manager.find_text_zone("Envmap:angle:title").define_size({ WINDOW_RES_X * (1. - (1.f / 30.f + 2.f / 3.f)), 0.f });
         main_GUI_manager.add_slider(GUI::slider(main_GUI_manager.on_follow_text_zone("Envmap:angle:title", 'Y'), { WINDOW_RES_X * (1. - (1.f / 30.f + 2.f / 3.f)), WINDOW_RES_Y * (1.f / 60.f) }, "Envmap:angle"));
-        main_GUI_manager.find_slider("Envmap:angle").min_bounds = -1.f;
-        main_GUI_manager.find_slider("Envmap:angle").max_bounds = 1.f;
+        main_GUI_manager.find_slider("Envmap:angle").min_bounds = 1.f;
+        main_GUI_manager.find_slider("Envmap:angle").max_bounds = -1.f;
         main_GUI_manager.find_slider("Envmap:angle").slider_percentage = 0.1f;
         main_GUI_manager.find_slider("Envmap:angle").interpolation_value = 0.5f;
 
@@ -360,17 +381,36 @@ namespace penguinPT {
         //loader02.volume_parameters(0, nanovdb::Vec3f(1.f), nanovdb::Vec3f(1.f), 0.4f, nanovdb::Vec3f(0.));
         //loader02.set_tranforms(0, 0.1f, nanovdb::Vec3f(0.f, 20.f, 0.f));
         scene_loader_sdpt.set_GPU_Compat(rs.CUDA_CAPABLE_GPU);
-        if (!scene_loader_sdpt.load_sdpt("scene0.sdpt", &loader01, &loader02, &loader03)) std::cout << "Error : failed to load scene from .sdpt\n";
 
-        loader01.send_to_scene(rs.scene);
-        rs.scene.build_BVH();
-        loader02.send_to_scene(rs.scene);
+        std::string a;
+        std::cout << "Choose file to load (with extension) : ";
+        std::cin >> a;
+
+        //if (!scene_loader_sdpt.load_sdpt(a, &loader01, &loader02, &loader03)) std::cout << "Error : failed to load scene from .sdpt\n";
+        scene_loader_sdpt.forceLoad(a, &loader01, &loader02, &loader03);
+
+        BVH* bvh_temp = loader01.getBVH(rs.CUDA_CAPABLE_GPU);
+        std::vector<Mesh> try_mesh;
+
+        //for (int i = 0; i < 10; i++) {
+            try_mesh.push_back(Mesh(bvh_temp));
+            try_mesh.back().setTransforms(math::Mat4f());
+        //}
+
+        rs.scene.setBSDFList(loader01.bsdf_loader.BSDF_list, rs.CUDA_CAPABLE_GPU);
+        rs.scene.setTLAS(try_mesh, rs.CUDA_CAPABLE_GPU);
+        rs.scene.setVolumeList(loader02.vol_list, rs.CUDA_CAPABLE_GPU);
+
+        //rs.scene.setTLAS(try_mesh, rs.CUDA_CAPABLE_GPU);
         loader03.send_to_gpu(rs.scene.environnement_map, cudaFilterModeLinear);
-        
 
+        //loader01.send_to_scene(rs.scene, rs.CUDA_CAPABLE_GPU);
+        //rs.scene.build_BVH();
+        //loader02.send_to_scene(rs.scene, rs.CUDA_CAPABLE_GPU);
+        //loader03.send_to_gpu(rs.scene.environnement_map, cudaFilterModeLinear);
         
         rs.send_to_GPU_data();
-        
+
         /////////////////////////////////////// Window and display ///////////////////////////////////////
         sf::RenderWindow window(sf::VideoMode(WINDOW_RES_X, WINDOW_RES_Y), "PenguinPT, v0.0");
         
@@ -412,7 +452,7 @@ namespace penguinPT {
                 rs.is_rendering = false;
                 rs.frame_index = 0;
             }
-            if (main_GUI_manager.find_button("Envmap:load").is_button_pressed(mouse_pos)) {
+            /*if (main_GUI_manager.find_button("Envmap:load").is_button_pressed(mouse_pos)) {
                 rs.clean_envmap();
                 loader03.clean();
 
@@ -434,25 +474,24 @@ namespace penguinPT {
 
                 tex_manager.clean();
 
-                //loader01.set_texture_manager(&tex_manager);
-
                 std::string a;
                 std::cout << "Choose file to load (with extension) : ";
                 std::cin >> a;
 
-                if (!scene_loader_sdpt.load_sdpt(a, &loader01, &loader02, &loader03)) std::cout << "Error : failed to load scene from .sdpt\n";
+                //if (!scene_loader_sdpt.load_sdpt(a, &loader01, &loader02, &loader03)) std::cout << "Error : failed to load scene from .sdpt\n";
+                scene_loader_sdpt.forceLoad(a, &loader01, &loader02, &loader03);
 
-                loader01.send_to_scene(rs.scene);
+                loader01.send_to_scene(rs.scene, rs.CUDA_CAPABLE_GPU);
                 
                 rs.scene.build_BVH();
                 
-                loader02.send_to_scene(rs.scene);
+                loader02.send_to_scene(rs.scene, rs.CUDA_CAPABLE_GPU);
                 
                 loader03.send_to_gpu(rs.scene.environnement_map, cudaFilterModeLinear);
                 
                 rs.send_to_GPU_data();
                 
-            }
+            }*/
             rs.mainCam.speed = main_GUI_manager.find_slider("camera:speed").update_slider(mouse_pos);
             rs.scene.environnement_map.strength = main_GUI_manager.find_slider("Envmap:strength").update_slider(mouse_pos);
             rs.scene.environnement_map.angle = main_GUI_manager.find_slider("Envmap:angle").update_slider(mouse_pos);

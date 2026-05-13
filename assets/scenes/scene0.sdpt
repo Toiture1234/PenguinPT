@@ -1,3 +1,4 @@
-solid "chess_moved.obj" 0 0 0 1 1 1 0 0 0
-volume "volume.nvdb" 0 20 0   0.1 0.1 0.1   0 0 0   1 1 1  0.8 0.8 0.8   -0.4  0 0 0  1
-envmap "qwantani_noon_2k.hdr"
+solid "bunny.obj" 0 0 0 5 5 5 0 0 0
+//volume "volume.nvdb" 0 20 0   0.1 0.1 0.1   0 0 0   1 1 1  1. 1. 1.    0.4  0 0 0  1
+//volume "volume.nvdb" 0 20 0   0.08 0.08 0.08   0 0 0   1 1 1  0. 0. 0.   -0.4  2. 0.2 0.05  1
+envmap "qwantani_late_afternoon_2k.hdr"

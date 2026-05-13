@@ -1,4 +1,15 @@
+// Copyright 2026 Toiture1234
+// 
+// SPDX-License-Identifier : MIT
+
 #pragma once
+
+#include <ppt/util/options.h>
+#include <ppt/util/Utility.h>
+#include <ppt/core/Material.h>
+#include <ppt/core/intersectors.h>
+#include <ppt/core/texture_manager.h>
+#include <ppt/core/Mesh.h>
 
 namespace penguinPT::loader {
 	class BSDF_loader {
@@ -23,7 +34,7 @@ namespace penguinPT::loader {
 			float ior,
 			float transparency);
 		void create_new_BSDF(std::string name, nanovdb::Vec3f albedo, float roughness);
-		void send_to_scene(Scene_data& scene);
+		//void send_to_scene(Scene_data& scene, bool is_gpu_available);
 
 		int gifn(std::string name);
 
@@ -47,9 +58,11 @@ namespace penguinPT::loader {
 
 		bool load_obj(std::string path, nanovdb::Vec3f position, float scale, bool useGPU = true, unsigned int BSDF_id = BASE_BSDF);
 		bool load_mtl(std::string path, bool useGPU = true);
-		void send_to_scene(Scene_data& scene);
+		//void send_to_scene(Scene_data& scene, bool is_gpu_available);
 
 		void set_texture_manager(texture_manager* src) { texture_m_ptr = src; }
+
+		BVH* getBVH(bool is_gpu_available);
 
 		void clean();
 
@@ -81,13 +94,13 @@ namespace penguinPT::loader {
 					else if (tokens.at(0) == "Kd") {
 						if (apply_definition) {
 							nanovdb::Vec3f& a = bsdf_loader.BSDF_list.back().albedo;
-							sscanf((tokens.at(1) + tokens.at(2) + tokens.at(3)).c_str(), "%f %f %f", &a[0], &a[1], &a[2]);
+							sscanf((tokens.at(1) + " " + tokens.at(2) + " " + tokens.at(3)).c_str(), "%f %f %f", &a[0], &a[1], &a[2]);
 						}
 					}
 					else if (tokens.at(0) == "Ke") {
 						if (apply_definition) {
 							nanovdb::Vec3f& a = bsdf_loader.BSDF_list.back().emission;
-							sscanf((tokens.at(1) + tokens.at(2) + tokens.at(3)).c_str(), "%f %f %f", &a[0], &a[1], &a[2]);
+							sscanf((tokens.at(1) + " " + tokens.at(2) + " " + tokens.at(3)).c_str(), "%f %f %f", &a[0], &a[1], &a[2]);
 						}
 					}
 					else if (tokens.at(0) == "Ni") {
@@ -344,17 +357,36 @@ namespace penguinPT::loader {
 		return true;
 	}
 
-	void obj_loader::send_to_scene(Scene_data& scene) {
+	//void obj_loader::send_to_scene(Scene_data& scene, bool is_gpu_available) {
+		/*std::cout << "Triangle data :\n";
+		std::cout << " - Number of triangles : " << triangles_num << "\n";
+		if (triangles_num != 0) {
+			scene = Scene_data(triangle_list.size(), is_gpu_available);
+			for (int i = 0; i < triangle_list.size(); i++) {
+				scene.triangles[i] = triangle_list.at(i);
+				scene.tr_data[i] = tr_data_list.at(i);
+				scene.triangle_indicies[i] = i;
+			}
+		}
+		else scene = Scene_data();
+
+		bsdf_loader.send_to_scene(scene, is_gpu_available);
+
+	}*/
+
+	BVH* obj_loader::getBVH(bool is_gpu_available) {
 		std::cout << "Triangle data :\n";
 		std::cout << " - Number of triangles : " << triangles_num << "\n";
-		scene = Scene_data(triangle_list.size());
-		for (int i = 0; i < triangle_list.size(); i++) {
-			scene.triangles[i] = triangle_list.at(i);
-			scene.tr_data[i] = tr_data_list.at(i);
-			scene.triangle_indicies[i] = i;
-		}
+		BVH* ptr;
 		
-		bsdf_loader.send_to_scene(scene);
+		if (is_gpu_available) cudaMallocManaged((void**)&ptr, sizeof(BVH));
+		else ptr = (BVH*)malloc(sizeof(BVH));
+
+		ptr->zeroValues();
+		ptr->fillBVH(triangle_list, tr_data_list, is_gpu_available);
+		ptr->buildBVH();
+		return ptr;
+		//bsdf_loader.send_to_scene(scene, is_gpu_available);
 
 	}
 	void obj_loader::clean() {
@@ -400,18 +432,24 @@ namespace penguinPT::loader {
 		BSDF_list.push_back(current);
 		BSDF_name.push_back(name);
 	}
-	void BSDF_loader::send_to_scene(Scene_data& scene) {
+	/*void BSDF_loader::send_to_scene(Scene_data& scene, bool is_gpu_available) {
 		// delete previous BSDF list if exist
-		if (scene.num_of_bsdf != 0) free(scene.bsdf_list);
+		if (scene.num_of_bsdf != 0) {
+			if (is_gpu_available) CUDA_CHECK(cudaFree(scene.bsdf_list))
+			else free(scene.bsdf_list);
+		}
 
-		scene.bsdf_list = (principled_BSDF*)malloc(BSDF_list.size() * sizeof(principled_BSDF));
+		if (is_gpu_available) CUDA_CHECK(cudaMallocManaged((void**)&scene.bsdf_list, BSDF_list.size() * sizeof(principled_BSDF)))
+		else scene.bsdf_list = (principled_BSDF*)malloc(BSDF_list.size() * sizeof(principled_BSDF));
+		
+
 		scene.num_of_bsdf = BSDF_list.size();
 		std::cout << "BSDF list : \n";
 		for (int i = 0; i < BSDF_list.size(); i++) {
 			scene.bsdf_list[i] = BSDF_list.at(i);
 			std::cout << " - " << BSDF_name.at(i) << "\n";
 		}
-	}
+	}*/
 	void BSDF_loader::clean() {
 		BSDF_list.clear();
 		BSDF_name.clear();

@@ -1,4 +1,13 @@
+// Copyright 2026 Toiture1234
+// 
+// SPDX-License-Identifier : MIT
+
 #pragma once
+
+#include <ppt/util/Utility.h>
+#include <ppt/cpu/CPU_texture.h>
+#include <ppt/core/Microfacet.h>
+
 
 #define POW_ROUGHNESS(r) ((r) * (r) * (r) * (r) * (r) * (r))
 #define GAMMA_CLAMP 0.0001f

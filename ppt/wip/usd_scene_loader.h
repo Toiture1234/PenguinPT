@@ -1,4 +1,12 @@
+// Copyright 2026 Toiture1234
+// 
+// SPDX-License-Identifier : MIT
+
 #pragma once
+
+#include <ppt/util/options.h>
+#include <ppt/util/Utility.h>
+#include <ppt/loaders/obj_loader.h>
 
 namespace penguinPT::loader {
 	class Xform {
