@@ -6,8 +6,11 @@
 
 #include <ppt/util/options.h>
 #include <ppt/util/Utility.h>
+
 #include <ppt/loaders/obj_loader.h>
+#include <ppt/loaders/BVH_loader.h>
 #include <ppt/loaders/nanovdb_loader.h>
+
 #include <ppt/core/envmap.h>
 
 namespace penguinPT::loader {
@@ -34,7 +37,7 @@ bool penguinPT::loader::SDPT_Loader::load_sdpt(std::string path, obj_loader* obj
 			std::vector<std::string> tokens = file_util::get_line_tokens(line, { ' ' });
 			
 			if (!tokens.empty()) {
-				if (tokens.at(0) == "solid") {
+				if (tokens.at(0) == "Solid") {
 					std::string name = file_util::remove_quote(tokens.at(1));
 					nanovdb::Vec3f position = nanovdb::Vec3f(std::stof(tokens.at(2)), std::stof(tokens.at(3)), std::stof(tokens.at(4)));
 					nanovdb::Vec3f size = nanovdb::Vec3f(std::stof(tokens.at(5)), std::stof(tokens.at(6)), std::stof(tokens.at(7)));
@@ -42,7 +45,7 @@ bool penguinPT::loader::SDPT_Loader::load_sdpt(std::string path, obj_loader* obj
 
 					if (!obj_ref->load_obj(name, position, size[0], GPU_available)) return false;
 				}
-				else if (tokens.at(0) == "volume") {
+				else if (tokens.at(0) == "Volume") {
 					std::string name = file_util::remove_quote(tokens.at(1));
 					nanovdb::Vec3f position = nanovdb::Vec3f(std::stof(tokens.at(2)), std::stof(tokens.at(3)), std::stof(tokens.at(4)));
 					nanovdb::Vec3f size = nanovdb::Vec3f(std::stof(tokens.at(5)), std::stof(tokens.at(6)), std::stof(tokens.at(7)));
@@ -55,10 +58,16 @@ bool penguinPT::loader::SDPT_Loader::load_sdpt(std::string path, obj_loader* obj
 					float d = std::stof(tokens.at(21));
 
 					if (!nvdb_ref->load_nvdb(name, GPU_available)) return false;
-					nvdb_ref->set_tranforms(nvdb_ref->volumes_num - 1, size[0], position);
+					nvdb_ref->set_tranforms(nvdb_ref->volumes_num - 1, 
+						math::Mat4f::translation(position) *
+						math::Mat4f::scale(size[0]) *
+						math::Mat4f::rotationX(rotation[0]) *
+						math::Mat4f::rotationY(rotation[1]) *
+						math::Mat4f::rotationZ(rotation[2]));
+					nvdb_ref->vol_list.back().transform_matrix_inverse = nvdb_ref->vol_list.back().transform_matrix.inverse();
 					nvdb_ref->volume_parameters(nvdb_ref->volumes_num - 1, sigma_t, albedo, g, emission, d);
 				}
-				else if (tokens.at(0) == "envmap") {
+				else if (tokens.at(0) == "Envmap") {
 					std::string name = file_util::remove_quote(tokens.at(1));
 					
 					if (!envmap_ref->load_from_file("assets/hdris/" + name)) return false;

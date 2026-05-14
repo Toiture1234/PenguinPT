@@ -31,7 +31,6 @@ namespace penguinPT {
 		__hostdev__ Volume() : density_grid(nullptr), sigma_t(0.f), albedo(0.f), g(0.f), emission(0.f), density_mult(1.f) {}
 
 		__hostdev__ bool intersect_volume_replace(nanovdb::math::Ray<float> ray, float& t_out, nanovdb::Vec3f& normal, Volume** all_volumes, int& nb_vol) {
-			//ray.setEye((ray.eye() - position) / scale);
 			ray = transform_matrix_inverse.transformRay(ray);
 			if (!ray.clip(density_grid->worldBBox())) return false;
 			float t0 = ray.t0();
@@ -51,8 +50,6 @@ namespace penguinPT {
 		}
 		__hostdev__ float get_density(nanovdb::Vec3f pos, nanovdb::Vec3f offset) {
 			auto acc = density_grid->getAccessor();
-			//pos -= position;
-			//pos /= scale;
 			pos = transform_matrix_inverse.transformPoint(pos);
 			nanovdb::Vec3f Ipos = density_grid->worldToIndexF(pos);
 			Ipos += offset;

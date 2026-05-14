@@ -1,4 +1,5 @@
-solid "bunny.obj" 0 0 0 5 5 5 0 0 0
-//volume "volume.nvdb" 0 20 0   0.1 0.1 0.1   0 0 0   1 1 1  1. 1. 1.    0.4  0 0 0  1
-//volume "volume.nvdb" 0 20 0   0.08 0.08 0.08   0 0 0   1 1 1  0. 0. 0.   -0.4  2. 0.2 0.05  1
-envmap "qwantani_late_afternoon_2k.hdr"
+TransformOrder translate scale rotate
+//Solid "bunny.obj" 0 0 0 5 5 5 0 0 0
+//Volume "volume.nvdb" 0 20 0   0.1 0.1 0.1   0 0 0   1 1 1  1. 1. 1.    0.4  0 0 0  1
+Volume "cloud2.nvdb" 0 0 0   0.4 0.4 0.4   -1.57 0. 0   2 2 2  1. 1. 1.   0.6  0. 0. 0.0  1.
+Envmap "qwantani_late_afternoon_2k.hdr"

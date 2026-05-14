@@ -83,56 +83,20 @@ namespace penguinPT {
 			std::cout << "-------------------------------------------------\n\n";
 		}
 
-		void send_to_GPU_data() {
-			/*if (!CUDA_CAPABLE_GPU) return;
-			scene.send_to_gpu_solid();
-			scene.send_to_gpu_volumes();
-			scene.send_to_gpu_BSDF();*/
-		}
 		// partial cleaning : only cleans solid scene data
 		void clean_solid() {
-			/*if (CUDA_CAPABLE_GPU) {
-				if (scene.num_of_bsdf != 0) CUDA_CHECK(cudaFree(scene.bsdf_list));
-				if (scene.num_of_triangles != 0) {
-					CUDA_CHECK(cudaFree(scene.triangles));
-					CUDA_CHECK(cudaFree(scene.triangle_indicies));
-					CUDA_CHECK(cudaFree(scene.tr_data));
-				}
-				if (scene.nodes_used != 0) CUDA_CHECK(cudaFree(scene.nodes));
-			}
-			else {
-				if (scene.num_of_bsdf != 0) free(scene.bsdf_list);
-				if (scene.num_of_triangles != 0) free(scene.triangles), free(scene.triangle_indicies), free(scene.tr_data);
-				if (scene.nodes_used != 0) free(scene.nodes);
-			}
-			scene.num_of_bsdf = 0;
-			scene.num_of_triangles = 0;
-			scene.nodes_used = 0;
-			*/
 			scene.clearTLAS(CUDA_CAPABLE_GPU);
 			scene.clearBSDFList(CUDA_CAPABLE_GPU);
 		}
 
 		// partial cleaning : only cleans volume scene data
 		void clean_volumes() {
-			/*if (CUDA_CAPABLE_GPU) {
-				if (scene.num_of_volumes != 0) CUDA_CHECK(cudaFree(scene.volumes));
-			}
-			else {
-				if (scene.num_of_volumes != 0) free(scene.volumes);
-			}
-			scene.num_of_volumes = 0;*/
 			scene.clearVolumeList(CUDA_CAPABLE_GPU);
 		}
 
 		// partial cleaning : only cleans envmap scene data
 		// this function only affects CUDA and CPU data need to be deleted from envmap_loader::clean()
 		void clean_envmap() {
-			/*if (CUDA_CAPABLE_GPU) {
-				// free envmap
-				CUDA_CHECK(cudaDestroyTextureObject(scene.environnement_map.image));
-				CUDA_CHECK(cudaDestroyTextureObject(scene.environnement_map.cdf));
-			}*/
 			scene.clearEnvmap(CUDA_CAPABLE_GPU);
 		}
 

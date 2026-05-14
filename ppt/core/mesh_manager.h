@@ -22,6 +22,8 @@ namespace penguinPT {
 		TLAS() = default;
 
 		void setMeshList(std::vector<Mesh>& src, bool is_gpu_available = false);
+
+		// Does not clear every Mesh contained in the TLAS
 		void clean(bool is_gpu_available = false);
 
 		void build();

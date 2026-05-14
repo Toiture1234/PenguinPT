@@ -16,6 +16,13 @@
 #define TLAS_INTERSECTOR_STACK_SIZE 64
 #define BVH_INTERSECTOR_STACK_SIZE 32
 
+
+#define BASE_BSDF 1 // pure black BSDF
+#define BSDF_TROUGH_ID 0 // for volumes
+
+#define MODE_TRIANGLE 1
+
+
 // debug things
 //#define WHITE_FURNACE
 //#define SEE_NORMALS

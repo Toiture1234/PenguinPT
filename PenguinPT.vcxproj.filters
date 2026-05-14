@@ -96,7 +96,7 @@
     <ClInclude Include="ppt\core\preview.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
-    <ClInclude Include="ppt\core\BVH_loader.h">
+    <ClInclude Include="ppt\loaders\BVH_loader.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
   </ItemGroup>

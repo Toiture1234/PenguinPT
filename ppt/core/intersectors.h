@@ -11,11 +11,6 @@
 #include <ppt/core/envmap.h>
 #include <ppt/util/Matrix.h>
 
-#define BASE_BSDF 1 // pure black BSDF
-#define BSDF_TROUGH_ID 0 // for volumes
-
-#define MODE_TRIANGLE 1
-
 namespace penguinPT {
 	class hit_info {
 	public:

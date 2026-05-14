@@ -48,6 +48,7 @@ namespace penguinPT::math {
 		__hostdev__ static Mat4f rotationZ(float angle);
 
 		__hostdev__ static Mat4f scale(nanovdb::Vec3f s);
+		__hostdev__ static Mat4f scale(float s);
 
 		__hostdev__ static Mat4f translation(nanovdb::Vec3f t);
 
@@ -158,6 +159,14 @@ __hostdev__ penguinPT::math::Mat4f penguinPT::math::Mat4f::scale(nanovdb::Vec3f 
 	m.data[0][0] = s[0];
 	m.data[1][1] = s[1];
 	m.data[2][2] = s[2];
+	return m;
+}
+
+__hostdev__ penguinPT::math::Mat4f penguinPT::math::Mat4f::scale(float s) {
+	Mat4f m;
+	m.data[0][0] = s;
+	m.data[1][1] = s;
+	m.data[2][2] = s;
 	return m;
 }
 

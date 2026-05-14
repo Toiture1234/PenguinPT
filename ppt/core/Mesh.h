@@ -31,7 +31,7 @@ namespace penguinPT {
 		void buildBVH();
 
 		void zeroValues() {
-			triangle_list = nullptr, triangle_data_list = nullptr, triangle_indicies_list = nullptr, triangle_number = 0, root_node_index = 0, nodes_used = 1;
+			triangle_list = nullptr, triangle_data_list = nullptr, triangle_indicies_list = nullptr, triangle_number = 0, root_node_index = 0, nodes_used = 1, node_list = nullptr;
 		}
 	
 		// intersect the BVH in BVH space
@@ -75,25 +75,27 @@ namespace penguinPT {
 	};
 }
 void penguinPT::Mesh::setTransforms(math::Mat4f T) {
-	assert(node_list != nullptr);
 	transform_matrix = T;
 	transform_matrix_inverse = T.inverse();
-	//math::copyMatrix(&T, &transform_matrix);
-	//math::copyMatrix(&T.inverse(), &transform_matrix_inverse);
 	bounding_box = AABB();
-	nanovdb::Vec3f b_min = raw_geometry->node_list[0].boxMin, b_max = raw_geometry->node_list[0].boxMax;
-	for (int i = 0; i < 8; i++) {
-		bounding_box.grow(T.transformPoint(nanovdb::Vec3f(i & 1 ? b_max[0] : b_min[0],
-			i & 2 ? b_max[1] : b_min[1], i & 4 ? b_max[2] : b_min[2])));
+
+	if (raw_geometry->triangle_number == 0) {
+		bounding_box.box_min = nanovdb::Vec3f(0.f);
+		bounding_box.box_max = nanovdb::Vec3f(0.f);
 	}
-	//math::printMatrix(transform_matrix);
-	//math::printMatrix(transform_matrix_inverse);
+	else {
+		nanovdb::Vec3f b_min = raw_geometry->node_list[0].boxMin, b_max = raw_geometry->node_list[0].boxMax;
+		for (int i = 0; i < 8; i++) {
+			bounding_box.grow(T.transformPoint(nanovdb::Vec3f(i & 1 ? b_max[0] : b_min[0],
+				i & 2 ? b_max[1] : b_min[1], i & 4 ? b_max[2] : b_min[2])));
+		}
+	}
 }
 __hostdev__ bool penguinPT::Mesh::intersectMesh(nanovdb::math::Ray<float> ray, hit_info& info) {
 	ray = transform_matrix_inverse.transformRay(ray);
 	bool hit = raw_geometry->intersectBVH(ray, info);
 
-	info.normal = transform_matrix.transformVector(info.normal);
+	info.normal = transform_matrix.transformVector(info.normal).normalize();
 	return hit;
 }
 

@@ -25,7 +25,7 @@ namespace penguinPT::loader {
 
 		bool load_nvdb(std::string path, bool use_gpu);
 		void volume_parameters(unsigned int index, nanovdb::Vec3f s_T, nanovdb::Vec3f albedo_, float g_, nanovdb::Vec3f emission_, float dM = 1.f);
-		void set_tranforms(unsigned int index, float scale_, nanovdb::Vec3f position_);
+		void set_tranforms(unsigned int index, math::Mat4f transform);
 		//bool send_to_scene(Scene_data& scene, bool is_gpu_available);
 		void clean();
 		int gifn(std::string name);
@@ -84,13 +84,11 @@ namespace penguinPT::loader {
 		candidate.emission = emission_;
 		candidate.density_mult = dM;
 	}
-	void nanovdb_loader::set_tranforms(unsigned int index, float scale_, nanovdb::Vec3f position_) {
+	void nanovdb_loader::set_tranforms(unsigned int index, math::Mat4f transform) {
 		if (index >= volumes_num) return;
 		Volume& candidate = vol_list.at(index);
 
-		//candidate.scale = scale_;
-		//candidate.position = position_;
-		candidate.transform_matrix = math::Mat4f::translation(position_) * math::Mat4f::scale(nanovdb::Vec3f(scale_));
+		candidate.transform_matrix = transform;
 		candidate.transform_matrix_inverse = candidate.transform_matrix.inverse();
 	}
 	/*bool nanovdb_loader::send_to_scene(Scene_data& scene, bool is_gpu_available) {
