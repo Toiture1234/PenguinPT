@@ -12,6 +12,7 @@
 #include <ppt/loaders/obj_loader.h>
 #include <ppt/loaders/nanovdb_loader.h>
 #include <ppt/loaders/SDPT_loader.h>
+#include <ppt/wip/usd_scene_loader.h>
 #include <ppt/user/GUI.h>
 
 #include <ppt/core/Mesh.h>
@@ -243,7 +244,7 @@ namespace penguinPT {
         loader::nanovdb_loader loader02;
         loader::envmap_loader loader03;
         loader::SDPT_Loader scene_loader_sdpt;
-        //loader::usd_scene_loader loader04;
+        loader::usd_scene_loader loader04;
         //loader::BSDF_loader loader05;
 
         texture_manager tex_manager;
@@ -355,7 +356,7 @@ namespace penguinPT {
             main_GUI_manager.find_slider("Envmap:angle").slider_percentage = 0.1f;
             main_GUI_manager.find_slider("Envmap:angle").interpolation_value = 0.5f;
         }
-        //loader04.load_usd_scene("untitled.usda");
+        loader04.load_usd_scene("untitled.usda");
 
         std::string scene_path;
         std::cout << "Choose file to load (with extension) : ";

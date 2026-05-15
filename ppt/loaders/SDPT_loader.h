@@ -30,6 +30,8 @@ namespace penguinPT::loader {
 bool penguinPT::loader::SDPT_Loader::load_sdpt(std::string path, obj_loader* obj_ref, nanovdb_loader* nvdb_ref, envmap_loader* envmap_ref) {
 	std::ifstream file("assets/scenes/" + path);
 
+
+
 	if (file.is_open()) {
 		std::string line;
 
@@ -60,7 +62,7 @@ bool penguinPT::loader::SDPT_Loader::load_sdpt(std::string path, obj_loader* obj
 					if (!nvdb_ref->load_nvdb(name, GPU_available)) return false;
 					nvdb_ref->set_tranforms(nvdb_ref->volumes_num - 1, 
 						math::Mat4f::translation(position) *
-						math::Mat4f::scale(size[0]) *
+						math::Mat4f::scale(size) *
 						math::Mat4f::rotationX(rotation[0]) *
 						math::Mat4f::rotationY(rotation[1]) *
 						math::Mat4f::rotationZ(rotation[2]));

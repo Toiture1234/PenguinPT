@@ -8,13 +8,21 @@
 #include <ppt/util/Utility.h>
 #include <ppt/loaders/obj_loader.h>
 
+#define SYMBOL_CHECK(x, y, c) if(x != y) { c ;}
+#define INVALID_USD std::cout << "ERROR -- Invalid USD file.\n";
+
 namespace penguinPT::loader {
+	struct Property {
+		std::string type;
+		std::string name;
+		std::string value;
+	};
 	class Xform {
 	public:
 		Xform() {}
 		~Xform() {}
 
-		std::vector<std::string> parameters;
+		std::vector<Property> property_list;
 
 		std::vector<Xform> childs;
 		std::string name;
@@ -44,6 +52,12 @@ namespace penguinPT::loader {
 		// called on the Xform name : def Xform [name] <-- here
 		Xform build_Xform_tree(unsigned int& i);
 
+		Property parseFloat(unsigned int i);
+		Property parseInt(unsigned int i);
+		Property parseBool(unsigned int i);
+		Property parseCustom(unsigned int i);
+		Property parseUniform(unsigned int i);
+
 		std::vector<std::string> tokens;
 		std::string scene_path;
 
@@ -53,6 +67,63 @@ namespace penguinPT::loader {
 	};
 
 
+}
+penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseFloat(unsigned int i) {
+	Property current_property;
+	current_property.type = "float";
+	current_property.name = tokens.at(i + 1);
+	SYMBOL_CHECK(tokens.at(i + 2), "=", INVALID_USD);
+	current_property.value = tokens.at(i + 3);
+	SYMBOL_CHECK(tokens.at(i + 4), "endline");
+	return current_property;
+}
+penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseInt(unsigned int i) {
+	Property current_property;
+	current_property.type = "int";
+	current_property.name = tokens.at(i + 1);
+	SYMBOL_CHECK(tokens.at(i + 2), "=", INVALID_USD);
+	current_property.value = tokens.at(i + 3);
+	SYMBOL_CHECK(tokens.at(i + 4), "endline")
+	return current_property;
+}
+penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseBool(unsigned int i) {
+	Property current_property;
+	current_property.type = "bool";
+	current_property.name = tokens.at(i + 1);
+	SYMBOL_CHECK(tokens.at(i + 2), "=", INVALID_USD);
+	current_property.value = tokens.at(i + 3);
+	SYMBOL_CHECK(tokens.at(i + 4), "endline")
+	return current_property;
+}
+penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseCustom(unsigned int i) {
+	Property current_property;
+	if (tokens.at(i + 1) != "string") {
+		std::cout << "ERROR -- Invalid USD file.\n";
+	}
+	current_property.type = "custom string";
+
+	current_property.name = tokens.at(i + 2);
+
+	SYMBOL_CHECK(tokens.at(i + 3), "=", INVALID_USD);
+
+	current_property.value = file_util::remove_quote(tokens.at(i + 4));
+
+	SYMBOL_CHECK(tokens.at(i + 5), "endline", INVALID_USD);
+	return current_property;
+}
+penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseUniform(unsigned int i) {
+	Property current_property;
+	SYMBOL_CHECK(tokens.at(i + 1), "token[]", INVALID_USD);
+	current_property.type = "uniform token[]";
+	current_property.name = tokens.at(i + 2);
+	SYMBOL_CHECK(tokens.at(i + 3), "=", INVALID_USD);
+
+	unsigned int y = i + 4;
+	while (tokens.at(y) != "endline") {
+		current_property.value += tokens.at(y++);
+	}
+	SYMBOL_CHECK(tokens.at(y), "endline", INVALID_USD);
+	return current_property;
 }
 
 std::vector<std::string> penguinPT::loader::usd_scene_loader::get_line(unsigned int& i) {
@@ -255,8 +326,16 @@ penguinPT::loader::Xform penguinPT::loader::usd_scene_loader::build_Xform_tree(u
 			}
 		}
 		else {
+			Property current_property;
 			if (tokens.at(i) == "float3[]") {
-				std::cout << "New float3[]\n";
+				current_property.type = "float3[]";
+				current_property.name = tokens.at(i + 1);
+				SYMBOL_CHECK(tokens.at(i + 2), "=", INVALID_USD);
+				unsigned int y = i + 4;
+				while (tokens.at(y) != "endline") {
+					current_property.value += tokens.at(y++);
+				}
+				SYMBOL_CHECK(tokens.at(y), "endline", INVALID_USD);
 			} 
 			else if (tokens.at(i) == "int[]") {
 				std::cout << "New int[]\n";
@@ -273,28 +352,43 @@ penguinPT::loader::Xform penguinPT::loader::usd_scene_loader::build_Xform_tree(u
 			else if (tokens.at(i) == "texCoord2f[]") {
 				std::cout << "New texCoord2f[]\n";
 			}
-			else if (tokens.at(i) == "float3") {
-				std::cout << "New float3\n";
+			// we don't like doubles here
+			else if (tokens.at(i) == "float3" || tokens.at(i) == "double3") {
+				current_property.type = tokens.at(i);
+				current_property.name = tokens.at(i + 1);
+				SYMBOL_CHECK(tokens.at(i + 2), "=", INVALID_USD);
+				current_property.value = tokens.at(i + 3) + tokens.at(i + 4) + tokens.at(i + 5);
+				SYMBOL_CHECK(tokens.at(i + 6), "endline")
 			}
 			else if (tokens.at(i) == "float") {
-				std::cout << "New float\n";
+				current_property = parseFloat(i);
 			}
 			else if (tokens.at(i) == "int") {
-				std::cout << "New int\n";
+				current_property = parseInt(i);
 			}
 			else if (tokens.at(i) == "bool") {
-				std::cout << "New bool\n";
+				current_property = parseBool(i);
 			}
 			else if (tokens.at(i) == "custom") {
-				std::cout << "New custom\n";
+				current_property = parseCustom(i);
 			}
+			else if (tokens.at(i) == "uniform") {
+				current_property = parseUniform(i);
+			}
+			std::cout << "Property : " << current_property.type << " : " << current_property.name << " : " << current_property.value << "\n";
+
+			current.property_list.push_back(current_property);
+
 			get_line(i);
 		}
 	}
 
 	if (tokens.at(i + 1) == "endline") {
-		std::cout << "Fine, end before an 'endline'.\n";
 		get_line(i);
+	}
+	else {
+		std::cout << "ERROR -- Uncorresponding token.\n";
+		return Xform();
 	}
 
 	return current;
@@ -302,6 +396,7 @@ penguinPT::loader::Xform penguinPT::loader::usd_scene_loader::build_Xform_tree(u
 
 bool penguinPT::loader::usd_scene_loader::load_usd_scene(std::string path) {
 	scene_path = path;
+
 	if (!load_tokens()) return false;
 
 	// technically, '(' should be the first token
