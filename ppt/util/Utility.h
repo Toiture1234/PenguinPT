@@ -276,4 +276,8 @@ namespace penguinPT::file_util {
 		for (int i = 0; i < s.size(); i++) if (s[i] != '\"') f += s[i];
 		return f;
 	}
+
+	void alinea(unsigned int lv) {
+		for (unsigned int i = 0U; i < lv; i++) std::cout << "  ";
+	}
 }

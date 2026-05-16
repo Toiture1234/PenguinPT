@@ -16,6 +16,10 @@ def Xform "root" (
 {
     def Xform "wdas_cloud_eighth"
     {
+        uniform bool doubleSided = 1
+        bool[] primvars:sharp_face = [1] (
+            interpolation = "uniform"
+        )
         custom string userProperties:blender:object_name = "wdas_cloud_eighth"
         float3 xformOp:rotateXYZ = (89.99999, -0, 0)
         float3 xformOp:scale = (1, 1, 1)
@@ -38,7 +42,7 @@ def Xform "root" (
     def Xform "Plane"
     {
         custom string userProperties:blender:object_name = "Plane"
-
+        
         def Mesh "Plane" (
             active = true
         )
