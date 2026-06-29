@@ -49,8 +49,13 @@ namespace penguinPT {
 				if (i > 0)
 					misWeight = util::powerHeuristic(scatterPDF, envmap_pdf);
 
+#ifndef NO_SKY_NO_BOUNCE
 				if (!surface_scatter)
 					misWeight = 1.f;
+#else
+				if (!surface_scatter)
+					misWeight = 0.f;
+#endif
 
 				if (misWeight > 0.f)
 					L[channel] += (misWeight * envmap_col)[channel] * throughput;
@@ -245,8 +250,13 @@ namespace penguinPT {
 				if (i > 0)
 					misWeight = util::powerHeuristic(scatterPDF, envmap_pdf);
 
+#ifndef NO_SKY_NO_BOUNCE
 				if (!surface_scatter)
 					misWeight = 1.f;
+#else
+				if (!surface_scatter)
+					misWeight = 0.f;
+#endif
 
 				if (misWeight > 0.f)
 					L[channel] += (misWeight * envmap_col)[channel] * throughput;

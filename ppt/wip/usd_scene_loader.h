@@ -7,6 +7,14 @@
 #include <ppt/util/options.h>
 #include <ppt/util/Utility.h>
 #include <ppt/loaders/obj_loader.h>
+#include <ppt/core/intersectors.h>
+#include <ppt/core/Mesh.h>
+
+#include <ppt/core/renderer_services.h>
+
+#include <ppt/loaders/BVH_loader.h>
+#include <ppt/loaders/nanovdb_loader.h>
+#include <ppt/core/envmap.h>
 
 #define SYMBOL_CHECK(x, y, c) if(x != y) { c }
 #define INVALID_USD std::cout << "ERROR -- Invalid USD file.\n";
@@ -36,14 +44,15 @@ namespace penguinPT::loader {
 	};
 	
 
-	class usd_scene_loader {
+	class USDSceneLoader {
 	public:
 		obj_loader typeObj;
 
 		bool load_usd_scene(std::string path);
+		void sendToRS(renderer_services* rs);
 
-		usd_scene_loader() {}
-		~usd_scene_loader() {}
+		USDSceneLoader() {}
+		~USDSceneLoader() {}
 
 	private:
 		// actually load file
@@ -53,7 +62,7 @@ namespace penguinPT::loader {
 		unsigned int get_closure(unsigned int i, std::string entrance, std::string closure);
 		void goto_next(unsigned int& i, std::string s);
 
-		// this function is clearly not cool
+		// This function is clearly not cool
 		// called on the Xform name : def Xform [name] <-- here
 		Xform build_Xform_tree(unsigned int& i);
 
@@ -65,13 +74,20 @@ namespace penguinPT::loader {
 		
 		Property parseInt(unsigned int i);
 		Property parseIntList(unsigned int i);
+
 		Property parseInt3List(unsigned int i);
 		Property parseBool(unsigned int i);
+
 		Property parseBoolList(unsigned int i, int& line_count);
+
 		Property parseNormal3fList(unsigned int i, int& line_count);
 		Property parseTexcoord2fList(unsigned int i, int& line_count);
+
 		Property parseRel(unsigned int i);
 		Property parseString(unsigned int i);
+
+		Property parseFloat2(unsigned int i);
+		Property parseAsset(unsigned int i);
 		
 		Property parseToken(unsigned int i);
 		Property parseTokenList(unsigned int i);
@@ -87,22 +103,42 @@ namespace penguinPT::loader {
 		Xform default_prim;
 		float meters_per_unit = 1.f;
 		std::string up_axis = "Y";
+
+		// scene description
+
+		BVHLoader solid_loader;
+		std::vector<Mesh> mesh_list;
+		nanovdb_loader volume_loader;
+		envmap_loader em_loader;
+
+		// Recursively add elements to the scene while tracking down the tree
+		void treeToScene(Xform& root);
+
+		// converters
+
+		// Converts from "(a,b,c)" to nanovdb::Vec3f(a,b,c)
+		nanovdb::Vec3f getVec3f(std::string src);
+		std::vector<nanovdb::Vec3f> getVec3fList(std::string src);
+
+		std::vector<float> getFloatList(std::string src);
+		std::vector<int> getIntList(std::string src);
+		std::vector<bool> getBoolList(std::string src);
 	};
 
 
 }
-void penguinPT::loader::usd_scene_loader::printProperty(Property& p, unsigned int level) {
+void penguinPT::loader::USDSceneLoader::printProperty(Property& p, unsigned int level) {
 	file_util::alinea(level);
 	std::cout << "Property : " << p.type << " : " << p.name << " : " << p.value << "\n";
 	for (Property& pp : p.sub_property_list) printProperty(pp, level + 1);
 }
-void penguinPT::loader::usd_scene_loader::printXformTree(Xform& root, unsigned int level) {
+void penguinPT::loader::USDSceneLoader::printXformTree(Xform& root, unsigned int level) {
 	file_util::alinea(level);
 	std::cout << "* " << root.type << " " << root.name << "\n";
 	for (Property& p : root.property_list) printProperty(p, level + 2);
 	for (Xform& c : root.childs) printXformTree(c, level + 2);
 }
-penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseFloat(unsigned int i) {
+penguinPT::loader::Property penguinPT::loader::USDSceneLoader::parseFloat(unsigned int i) {
 	Property current_property;
 	current_property.type = "float";
 	current_property.name = tokens.at(i + 1);
@@ -111,16 +147,16 @@ penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseFloat(unsi
 	SYMBOL_CHECK(tokens.at(i + 4), "endline", INVALID_USD);
 	return current_property;
 }
-penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseFloat3(unsigned int i) {
+penguinPT::loader::Property penguinPT::loader::USDSceneLoader::parseFloat3(unsigned int i) {
 	Property current_property;
-	current_property.type = tokens.at(i);
+	current_property.type = "float3";
 	current_property.name = tokens.at(i + 1);
 	SYMBOL_CHECK(tokens.at(i + 2), "=", INVALID_USD);
 	current_property.value = tokens.at(i + 3) + tokens.at(i + 4) + tokens.at(i + 5);
 	SYMBOL_CHECK(tokens.at(i + 6), "endline", INVALID_USD)
 	return current_property;
 }
-penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseFloatList(unsigned int i) {
+penguinPT::loader::Property penguinPT::loader::USDSceneLoader::parseFloatList(unsigned int i) {
 	Property current_property;
 	current_property.type = "float[]";
 	current_property.name = tokens.at(i + 1);
@@ -132,7 +168,7 @@ penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseFloatList(
 	SYMBOL_CHECK(tokens.at(y), "endline", INVALID_USD);
 	return current_property;
 }
-penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseFloat3List(unsigned int i) {
+penguinPT::loader::Property penguinPT::loader::USDSceneLoader::parseFloat3List(unsigned int i) {
 	Property current_property;
 	current_property.type = "float3[]";
 	current_property.name = tokens.at(i + 1);
@@ -144,7 +180,7 @@ penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseFloat3List
 	SYMBOL_CHECK(tokens.at(y), "endline", INVALID_USD);
 	return current_property;
 }
-penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseInt(unsigned int i) {
+penguinPT::loader::Property penguinPT::loader::USDSceneLoader::parseInt(unsigned int i) {
 	Property current_property;
 	current_property.type = "int";
 	current_property.name = tokens.at(i + 1);
@@ -153,7 +189,7 @@ penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseInt(unsign
 	SYMBOL_CHECK(tokens.at(i + 4), "endline", INVALID_USD)
 	return current_property;
 }
-penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseInt3List(unsigned int i) {
+penguinPT::loader::Property penguinPT::loader::USDSceneLoader::parseInt3List(unsigned int i) {
 	Property current_property;
 	current_property.type = "int3[]";
 	current_property.name = tokens.at(i + 1);
@@ -165,7 +201,7 @@ penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseInt3List(u
 	SYMBOL_CHECK(tokens.at(y), "endline", INVALID_USD);
 	return current_property;
 }
-penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseBool(unsigned int i) {
+penguinPT::loader::Property penguinPT::loader::USDSceneLoader::parseBool(unsigned int i) {
 	Property current_property;
 	current_property.type = "bool";
 	current_property.name = tokens.at(i + 1);
@@ -174,7 +210,7 @@ penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseBool(unsig
 	SYMBOL_CHECK(tokens.at(i + 4), "endline", INVALID_USD)
 	return current_property;
 }
-penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseIntList(unsigned int i) {
+penguinPT::loader::Property penguinPT::loader::USDSceneLoader::parseIntList(unsigned int i) {
 	Property current_property;
 	current_property.type = "int[]";
 	current_property.name = tokens.at(i + 1);
@@ -186,7 +222,7 @@ penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseIntList(un
 	SYMBOL_CHECK(tokens.at(y), "endline", INVALID_USD);
 	return current_property;
 }
-penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseBoolList(unsigned int i, int& line_count) {
+penguinPT::loader::Property penguinPT::loader::USDSceneLoader::parseBoolList(unsigned int i, int& line_count) {
 	Property current_property;
 	current_property.type = "bool[]";
 	current_property.name = tokens.at(i + 1);
@@ -215,7 +251,7 @@ penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseBoolList(u
 
 	return current_property;
 }
-penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseNormal3fList(unsigned int i, int& line_count) {
+penguinPT::loader::Property penguinPT::loader::USDSceneLoader::parseNormal3fList(unsigned int i, int& line_count) {
 	Property current_property;
 	current_property.type = "normal3f[]";
 	current_property.name = tokens.at(i + 1);
@@ -244,7 +280,7 @@ penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseNormal3fLi
 
 	return current_property;
 }
-penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseTexcoord2fList(unsigned int i, int& line_count) {
+penguinPT::loader::Property penguinPT::loader::USDSceneLoader::parseTexcoord2fList(unsigned int i, int& line_count) {
 	Property current_property;
 	current_property.type = "texcoord2f[]";
 	current_property.name = tokens.at(i + 1);
@@ -273,7 +309,7 @@ penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseTexcoord2f
 
 	return current_property;
 }
-penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseRel(unsigned int i) {
+penguinPT::loader::Property penguinPT::loader::USDSceneLoader::parseRel(unsigned int i) {
 	Property current_property;
 	current_property.type = "rel";
 	current_property.name = tokens.at(i + 1);
@@ -282,7 +318,7 @@ penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseRel(unsign
 	SYMBOL_CHECK(tokens.at(i + 4), "endline", INVALID_USD);
 	return current_property;
 }
-penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseString(unsigned int i) {
+penguinPT::loader::Property penguinPT::loader::USDSceneLoader::parseString(unsigned int i) {
 	Property current_property;
 	current_property.type = "string";
 	current_property.name = tokens.at(i + 1);
@@ -297,7 +333,7 @@ penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseString(uns
 	return current_property;
 }
 
-penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseToken(unsigned int i) {
+penguinPT::loader::Property penguinPT::loader::USDSceneLoader::parseToken(unsigned int i) {
 	Property current_property;
 	current_property.type = "token";
 	current_property.name = tokens.at(i + 1);
@@ -306,7 +342,7 @@ penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseToken(unsi
 	SYMBOL_CHECK(tokens.at(i + 4), "endline", INVALID_USD)
 	return current_property;
 }
-penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseTokenList(unsigned int i) {
+penguinPT::loader::Property penguinPT::loader::USDSceneLoader::parseTokenList(unsigned int i) {
 	Property current_property;
 	current_property.type = "token[]";
 	current_property.name = tokens.at(i + 1);
@@ -319,7 +355,26 @@ penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseTokenList(
 	return current_property;
 }
 
-penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseProperty(unsigned int& i) {
+penguinPT::loader::Property penguinPT::loader::USDSceneLoader::parseAsset(unsigned int i) {
+	Property current_property;
+	current_property.type = "asset";
+	current_property.name = tokens.at(i + 1);
+	SYMBOL_CHECK(tokens.at(i + 2), "=", INVALID_USD);
+	current_property.value = file_util::remove_quote(tokens.at(i + 3));
+	SYMBOL_CHECK(tokens.at(i + 4), "endline", INVALID_USD)
+		return current_property;
+}
+penguinPT::loader::Property penguinPT::loader::USDSceneLoader::parseFloat2(unsigned int i) {
+	Property current_property;
+	current_property.type = "float2";
+	current_property.name = tokens.at(i + 1);
+	SYMBOL_CHECK(tokens.at(i + 2), "=", INVALID_USD);
+	current_property.value = tokens.at(i + 3) + tokens.at(i + 4);
+	SYMBOL_CHECK(tokens.at(i + 5), "endline", INVALID_USD);
+	return current_property;
+}
+
+penguinPT::loader::Property penguinPT::loader::USDSceneLoader::parseProperty(unsigned int& i) {
 	Property current_property;
 	if (tokens.at(i) == "float3[]") {
 		current_property = parseFloat3List(i);
@@ -346,17 +401,23 @@ penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseProperty(u
 		for (int k = 0; k < lc; k++) get_line(i);
 	}
 	// we don't like doubles here
-	else if (tokens.at(i) == "float3" || tokens.at(i) == "double3") {
+	else if (tokens.at(i) == "float3" || tokens.at(i) == "double3" || tokens.at(i) == "color3f") {
 		current_property = parseFloat3(i);
 	}
 	else if (tokens.at(i) == "float") {
 		current_property = parseFloat(i);
+	}
+	else if (tokens.at(i) == "float2") {
+		current_property = parseFloat2(i);
 	}
 	else if (tokens.at(i) == "int") {
 		current_property = parseInt(i);
 	}
 	else if (tokens.at(i) == "bool") {
 		current_property = parseBool(i);
+	}
+	else if (tokens.at(i) == "asset") {
+		current_property = parseAsset(i);
 	}
 	else if (tokens.at(i) == "custom") {
 		i++;
@@ -383,7 +444,38 @@ penguinPT::loader::Property penguinPT::loader::usd_scene_loader::parseProperty(u
 	return current_property;
 }
 
-std::vector<std::string> penguinPT::loader::usd_scene_loader::get_line(unsigned int& i) {
+// converters
+nanovdb::Vec3f penguinPT::loader::USDSceneLoader::getVec3f(std::string src) {
+	std::vector<std::string> values = file_util::get_line_tokens(src, { ' ', ',', '(', ')' });
+	return nanovdb::Vec3f(std::stof(values.at(0)), std::stof(values.at(1)), std::stof(values.at(2)));
+}
+std::vector<nanovdb::Vec3f> penguinPT::loader::USDSceneLoader::getVec3fList(std::string src) {
+	std::vector<std::string> values = file_util::get_line_tokens(src, { ' ', ',', '(', ')', '[', ']'});
+	std::vector<nanovdb::Vec3f> arr;
+	for (int i = 0; i < values.size() / 3.f; i++) arr.push_back(nanovdb::Vec3f(std::stof(values.at(i)), std::stof(values.at(i + 1)), std::stof(values.at(i + 2))));
+	return arr;
+}
+
+std::vector<float> penguinPT::loader::USDSceneLoader::getFloatList(std::string src) {
+	std::vector<std::string> values = file_util::get_line_tokens(src, { ' ', ',', '(', ')', '[', ']' });
+	std::vector<float> arr;
+	for (std::string& str : values) arr.push_back(std::stof(str));
+	return arr;
+}
+std::vector<int> penguinPT::loader::USDSceneLoader::getIntList(std::string src) {
+	std::vector<std::string> values = file_util::get_line_tokens(src, { ' ', ',', '(', ')', '[', ']' });
+	std::vector<int> arr;
+	for (std::string& str : values) arr.push_back(std::stoi(str));
+	return arr;
+}
+std::vector<bool> penguinPT::loader::USDSceneLoader::getBoolList(std::string src) {
+	std::vector<std::string> values = file_util::get_line_tokens(src, { ' ', ',', '(', ')', '[', ']' });
+	std::vector<bool> arr;
+	for (std::string& str : values) arr.push_back(str == "0" || str == "false" ? false : true);
+	return arr;
+}
+
+std::vector<std::string> penguinPT::loader::USDSceneLoader::get_line(unsigned int& i) {
 	std::vector<std::string> temp;
 	while (tokens.at(i) != "endline")
 	{
@@ -395,7 +487,7 @@ std::vector<std::string> penguinPT::loader::usd_scene_loader::get_line(unsigned 
 	return temp;
 }
 
-unsigned int penguinPT::loader::usd_scene_loader::get_closure(unsigned int i, std::string entrance, std::string closure) {
+unsigned int penguinPT::loader::USDSceneLoader::get_closure(unsigned int i, std::string entrance, std::string closure) {
 	int level = 0;
 
 	// check if called on the right character
@@ -414,10 +506,10 @@ unsigned int penguinPT::loader::usd_scene_loader::get_closure(unsigned int i, st
 	}
 	return i;
 }
-void penguinPT::loader::usd_scene_loader::goto_next(unsigned int& i, std::string s) {
+void penguinPT::loader::USDSceneLoader::goto_next(unsigned int& i, std::string s) {
 	while (tokens.at(i) != s) i++;
 }
-bool penguinPT::loader::usd_scene_loader::load_tokens() {
+bool penguinPT::loader::USDSceneLoader::load_tokens() {
 	std::ifstream file("assets/scenes/" + scene_path);
 	if (file.is_open()) {
 		std::string line;
@@ -438,7 +530,7 @@ bool penguinPT::loader::usd_scene_loader::load_tokens() {
 	return false;
 }
 
-penguinPT::loader::Xform penguinPT::loader::usd_scene_loader::build_Xform_tree(unsigned int& i) {
+penguinPT::loader::Xform penguinPT::loader::USDSceneLoader::build_Xform_tree(unsigned int& i) {
 	Xform current;
 	current.type = tokens.at(i++);
 	current.name = file_util::remove_quote(tokens.at(i++));
@@ -532,7 +624,54 @@ penguinPT::loader::Xform penguinPT::loader::usd_scene_loader::build_Xform_tree(u
 	return current;
 }
 
-bool penguinPT::loader::usd_scene_loader::load_usd_scene(std::string path) {
+void penguinPT::loader::USDSceneLoader::treeToScene(Xform& root) {
+	std::string name;
+	nanovdb::Vec3f rotation, scale, translate;
+
+	// transform order is set by default and not supported yet
+	nanovdb::Vec3u8 transform_order;
+
+	for (Property& p : root.property_list) {
+		if (p.name == "userProperties:blender:object_name") name = p.value;
+		else if (p.name == "xformOp:rotateXYZ") rotation = getVec3f(p.value);
+		else if (p.name == "xformOp:scale") scale = getVec3f(p.value);
+		else if (p.name == "xformOp:translate") translate = getVec3f(p.value);
+	}
+
+	for (Xform& xf : root.childs) {
+		if (xf.type == "Xform") {
+			treeToScene(xf);
+		}
+		else if (xf.type == "Volume") {
+			AABB extent;
+			std::string density; // link to an openVDB asset density
+
+		}
+		else if (xf.type == "Mesh") {
+			AABB extent;
+
+		}
+		else if (xf.type == "Camera") {
+			float2 clippingRange;
+			float focalLength;
+			float horizontalAperture;
+			float horizontalApertureOffset;
+			std::string projection;
+			std::string data_name;
+			float verticalAperture;
+			float verticalApertureOffset;
+		}
+		else if (xf.type == "SphereLight") {
+
+		}
+		else if (xf.type == "DomeLight") {
+
+		}
+	}
+}
+
+
+bool penguinPT::loader::USDSceneLoader::load_usd_scene(std::string path) {
 	scene_path = path;
 
 	if (!load_tokens()) return false;

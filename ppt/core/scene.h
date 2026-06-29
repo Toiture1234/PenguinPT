@@ -24,7 +24,7 @@ namespace penguinPT {
 		void setTLAS(std::vector<Mesh>& mesh_src, bool is_gpu_available = false);
 		void clearTLAS(bool is_gpu_available = false);
 
-		void setVolumeList(std::vector<Volume> volume_src, bool is_gpu_available = false);
+		void setVolumeList(std::vector<Volume>& volume_src, bool is_gpu_available = false);
 		void clearVolumeList(bool is_gpu_available = false);
 
 		void setBSDFList(std::vector<principled_BSDF> bsdf_src, bool is_gpu_available = false);
@@ -44,7 +44,7 @@ void penguinPT::Scene::clearTLAS(bool is_gpu_available) {
 	solid_geometry.clean(is_gpu_available);
 }
 
-void penguinPT::Scene::setVolumeList(std::vector<Volume> volume_src, bool is_gpu_available) {
+void penguinPT::Scene::setVolumeList(std::vector<Volume>& volume_src, bool is_gpu_available) {
 	// clear previous volumes
 	clearVolumeList(is_gpu_available);
 

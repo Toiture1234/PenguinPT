@@ -31,7 +31,7 @@
     <ClInclude Include="ppt\cpu\CPU_texture.h" />
     <ClInclude Include="ppt\core\direct_lightning.h" />
     <ClInclude Include="ppt\core\envmap.h" />
-    <ClInclude Include="ppt\user\GUI.h" />
+    <ClInclude Include="ppt\user\gui\button.h" />
     <ClInclude Include="ppt\loaders\hdr_loader.h" />
     <ClInclude Include="ppt\core\integrators.h" />
     <ClInclude Include="ppt\core\intersectors.h" />
@@ -39,6 +39,10 @@
     <ClInclude Include="ppt\core\Microfacet.h" />
     <ClInclude Include="ppt\loaders\nanovdb_loader.h" />
     <ClInclude Include="ppt\loaders\obj_loader.h" />
+    <ClInclude Include="ppt\user\gui\gui_utility.h" />
+    <ClInclude Include="ppt\user\gui\options_interface.h" />
+    <ClInclude Include="ppt\user\gui\slider.h" />
+    <ClInclude Include="ppt\user\gui\text_box.h" />
     <ClInclude Include="ppt\util\Matrix.h" />
     <ClInclude Include="ppt\util\options.h" />
     <ClInclude Include="ppt\core\pathtracer.h" />
@@ -139,13 +143,14 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions);SFML_STATIC</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(CudaToolkitIncludeDir);C:\openvdb-12.1.0\openvdb\nanovdb;$(SolutionDir)ext/SFML/include;$(SolutionDir)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(CudaToolkitIncludeDir);C:\openvdb-12.1.0\openvdb\nanovdb;$(SolutionDir)ext/SFML/include;$(SolutionDir);$(SolutionDir)ext/glew-2.3.1/include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <SubSystem>Console</SubSystem>
+      <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(SolutionDir)ext\SFML\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>%(AdditionalDependencies);cudart.lib;cudadevrt.lib;winmm.lib;gdi32.lib;opengl32.lib;freetype.lib;sfml-system-s-d.lib;sfml-window-s-d.lib;sfml-graphics-s-d.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);cudart.lib;cudadevrt.lib;winmm.lib;gdi32.lib;opengl32.lib;freetype.lib;sfml-system-s-d.lib;sfml-window-s-d.lib;sfml-graphics-s-d.lib;Comdlg32.lib</AdditionalDependencies>
+      <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
     </Link>
     <CudaCompile>
       <AdditionalOptions>--std=c++17 --extended-lambda %(AdditionalOptions)</AdditionalOptions>
@@ -160,13 +165,14 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions);SFML_STATIC</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(CudaToolkitIncludeDir);C:\openvdb-12.1.0\openvdb\nanovdb;$(SolutionDir)ext/SFML/include;$(SolutionDir)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(CudaToolkitIncludeDir);C:\openvdb-12.1.0\openvdb\nanovdb;$(SolutionDir)ext/SFML/include;$(SolutionDir);$(SolutionDir)ext/glew-2.3.1/include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <SubSystem>Console</SubSystem>
+      <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(SolutionDir)ext\SFML\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>%(AdditionalDependencies);cudart.lib;cudadevrt.lib;winmm.lib;gdi32.lib;opengl32.lib;freetype.lib;sfml-system-s.lib;sfml-window-s.lib;sfml-graphics-s.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);cudart.lib;cudadevrt.lib;winmm.lib;gdi32.lib;opengl32.lib;freetype.lib;sfml-system-s.lib;sfml-window-s.lib;sfml-graphics-s.lib;Comdlg32.lib</AdditionalDependencies>
+      <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
     </Link>
     <CudaCompile>
       <AdditionalOptions>--std=c++17 --extended-lambda %(AdditionalOptions)</AdditionalOptions>

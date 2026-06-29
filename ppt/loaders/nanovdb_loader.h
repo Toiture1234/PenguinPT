@@ -19,6 +19,7 @@ namespace penguinPT::loader {
 		// to check if a grid has already been loaded, so to not load multiple times the same object
 		std::vector<std::string> grid_names;
 		std::vector<nanovdb::GridHandle<>> handles_cpu;
+		std::vector<nanovdb::GridHandle<nanovdb::CudaDeviceBuffer>> handles_gpu;
 
 		std::vector<Volume> vol_list;
 		unsigned int volumes_num = 0;
@@ -33,7 +34,13 @@ namespace penguinPT::loader {
 
 	void nanovdb_loader::clean() {
 		grid_names.clear();
+
+		for (nanovdb::GridHandle<>& gh : handles_cpu) gh.reset();
+		for (nanovdb::GridHandle<nanovdb::CudaDeviceBuffer>& gh : handles_gpu) gh.reset();
+
 		handles_cpu.clear();
+		handles_gpu.clear();
+		vol_list.clear();
 		volumes_num = 0;
 	}
 	
@@ -49,14 +56,22 @@ namespace penguinPT::loader {
 			try {
 				// create volume
 				if (use_gpu) {
-					auto handle = nanovdb::io::readGrid<nanovdb::CudaDeviceBuffer>("assets/volumes/" + path);
+#ifndef WINDOWS_VERSION
+					handles_gpu.push_back(nanovdb::io::readGrid<nanovdb::CudaDeviceBuffer>("assets/volumes/" + path));
+#else
+					handles_gpu.push_back(nanovdb::io::readGrid<nanovdb::CudaDeviceBuffer>(path));
+#endif
 					
-					handle.deviceUpload(); // Copy the NanoVDB grid to the GPU asynchronously
+					handles_gpu.back().deviceUpload(); // Copy the NanoVDB grid to the GPU asynchronously
 					
-					candidate.density_grid = handle.deviceGrid<float>(); // get a (raw) pointer to a NanoVDB grid of value type float on the GPU
+					candidate.density_grid = handles_gpu.back().deviceGrid<float>(); // get a (raw) pointer to a NanoVDB grid of value type float on the GPU
 				}
 				else {
+#ifndef WINDOWS_VERSION
 					handles_cpu.push_back(nanovdb::io::readGrid("assets/volumes/" + path));
+#else
+					handles_cpu.push_back(nanovdb::io::readGrid(path));
+#endif
 					candidate.density_grid = handles_cpu.back().grid<float>();
 				}
 
@@ -71,6 +86,7 @@ namespace penguinPT::loader {
 		volumes_num++;
 		grid_names.push_back(path);
 		vol_list.push_back(candidate);
+
 		return true;
 	}
 
@@ -91,15 +107,6 @@ namespace penguinPT::loader {
 		candidate.transform_matrix = transform;
 		candidate.transform_matrix_inverse = candidate.transform_matrix.inverse();
 	}
-	/*bool nanovdb_loader::send_to_scene(Scene_data& scene, bool is_gpu_available) {
-		scene.empty_volumes(volumes_num, is_gpu_available);
-		for (int i = 0; i < volumes_num; i++) {
-			scene.volumes[i] = vol_list.at(i);
-		}
-
-		vol_list.clear();
-		return true;
-	}*/
 	int nanovdb_loader::gifn(std::string name) {
 		for (int i = 0; i < grid_names.size(); i++) {
 			if (name == grid_names.at(i)) return i;

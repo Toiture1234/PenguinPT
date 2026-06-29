@@ -11,13 +11,13 @@
 #include <ppt/core/intersectors.h>
 #include <ppt/core/scene.h>
 
-#define WINDOW_RES_X 1920
-#define WINDOW_RES_Y 1080
+#define WINDOW_RES_X 1280
+#define WINDOW_RES_Y 720
 
 namespace penguinPT {
 	class renderer_services {
 	public:
-		unsigned int width = WINDOW_RES_X * (2.f / 3.f), height = WINDOW_RES_Y * (2.f / 3.f);
+		unsigned int width = WINDOW_RES_X, height = WINDOW_RES_Y;
 
 		bool CUDA_CAPABLE_GPU = false;
 
@@ -26,6 +26,9 @@ namespace penguinPT {
 		unsigned int frame_index = 0;
 		float delta_time = 1.f;
 		bool is_rendering = false;
+
+		bool lock_camera = false;
+		bool focus_needed = true;
 		Rand_state rng_state = Rand_state();
 
 		camera mainCam;

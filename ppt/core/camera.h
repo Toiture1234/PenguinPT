@@ -14,19 +14,23 @@ namespace penguinPT {
 	public:
 		nanovdb::Vec3f position = nanovdb::Vec3f(0.f);
 		nanovdb::Vec3f angles = nanovdb::Vec3f(0.f); // true angle of camera
-        nanovdb::Vec3f last_angles_noPressed;
-        nanovdb::Vec3f last_true_angles;
+        nanovdb::Vec3f last_angles_noPressed = nanovdb::Vec3f(0.f);
+        nanovdb::Vec3f last_true_angles = nanovdb::Vec3f(0.f);
 
 		float zoom = 1.0f; // TODO : replace with proper fov
         float speed = 1.0f;
 
         // params
         float exposure = 1.0f;
-        float constrast = 1.0f;
+        float contrast = 1.0f;
         float saturation = 1.0f;
         nanovdb::Vec3f multiplier = nanovdb::Vec3f(1.f);
 
         float vignette = 0.f;
+
+        // DOF
+        float DOF_strength = 0.f;
+        float focal_distance = 1.f;
 
 		__hostdev__ camera() {}
         __hostdev__ ~camera() {}

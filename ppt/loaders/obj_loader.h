@@ -34,8 +34,7 @@ namespace penguinPT::loader {
 			float ior,
 			float transparency);
 		void create_new_BSDF(std::string name, nanovdb::Vec3f albedo, float roughness);
-		//void send_to_scene(Scene_data& scene, bool is_gpu_available);
-
+		
 		int gifn(std::string name);
 
 		void clean();
@@ -58,8 +57,7 @@ namespace penguinPT::loader {
 
 		bool load_obj(std::string path, nanovdb::Vec3f position, float scale, bool useGPU = true, unsigned int BSDF_id = BASE_BSDF);
 		bool load_mtl(std::string path, bool useGPU = true);
-		//void send_to_scene(Scene_data& scene, bool is_gpu_available);
-
+		
 		void set_texture_manager(texture_manager* src) { texture_m_ptr = src; }
 
 		BVH* getBVH(bool is_gpu_available);
@@ -71,7 +69,11 @@ namespace penguinPT::loader {
 	};
 
 	bool obj_loader::load_mtl(std::string path, bool useGPU) {
+#ifndef WINDOWS_VERSION
 		std::ifstream file("assets/models/" + path);
+#else
+		std::ifstream file(path);
+#endif
 
 		if (file.is_open()) {
 			std::string line;
@@ -112,6 +114,12 @@ namespace penguinPT::loader {
 					else if (tokens.at(0) == "Pr") {
 						if (apply_definition) {
 							float& a = bsdf_loader.BSDF_list.back().roughness;
+							sscanf(tokens.at(1).c_str(), "%f", &a);
+						}
+					}
+					else if (tokens.at(0) == "Pm") {
+						if (apply_definition) {
+							float& a = bsdf_loader.BSDF_list.back().metalness;
 							sscanf(tokens.at(1).c_str(), "%f", &a);
 						}
 					}
@@ -190,8 +198,11 @@ namespace penguinPT::loader {
 		unsigned int uv_start = uv_list.size();
 
 		bool mtl_file = false;
-
+#ifndef WINDOWS_VERSION
 		std::ifstream file("assets/models/" + path);
+#else
+		std::ifstream file(path);
+#endif
 
 		if (file.is_open()) {
 			std::string line;
@@ -215,7 +226,11 @@ namespace penguinPT::loader {
 						uvs = true;
 					}
 					else if (tokens.at(0) == "mtllib") {
+#ifndef WINDOWS_VERSION
 						mtl_file = load_mtl(tokens.at(1), useGPU);
+#else
+						mtl_file = load_mtl(file_util::removeFileName(path) + tokens.at(1), useGPU);
+#endif
 					}
 					else if (tokens.at(0) == "usemtl" && mtl_file) {
 						// choose material
@@ -357,23 +372,6 @@ namespace penguinPT::loader {
 		return true;
 	}
 
-	//void obj_loader::send_to_scene(Scene_data& scene, bool is_gpu_available) {
-		/*std::cout << "Triangle data :\n";
-		std::cout << " - Number of triangles : " << triangles_num << "\n";
-		if (triangles_num != 0) {
-			scene = Scene_data(triangle_list.size(), is_gpu_available);
-			for (int i = 0; i < triangle_list.size(); i++) {
-				scene.triangles[i] = triangle_list.at(i);
-				scene.tr_data[i] = tr_data_list.at(i);
-				scene.triangle_indicies[i] = i;
-			}
-		}
-		else scene = Scene_data();
-
-		bsdf_loader.send_to_scene(scene, is_gpu_available);
-
-	}*/
-
 	BVH* obj_loader::getBVH(bool is_gpu_available) {
 		std::cout << "Triangle data :\n";
 		std::cout << " - Number of triangles : " << triangles_num << "\n";
@@ -432,24 +430,6 @@ namespace penguinPT::loader {
 		BSDF_list.push_back(current);
 		BSDF_name.push_back(name);
 	}
-	/*void BSDF_loader::send_to_scene(Scene_data& scene, bool is_gpu_available) {
-		// delete previous BSDF list if exist
-		if (scene.num_of_bsdf != 0) {
-			if (is_gpu_available) CUDA_CHECK(cudaFree(scene.bsdf_list))
-			else free(scene.bsdf_list);
-		}
-
-		if (is_gpu_available) CUDA_CHECK(cudaMallocManaged((void**)&scene.bsdf_list, BSDF_list.size() * sizeof(principled_BSDF)))
-		else scene.bsdf_list = (principled_BSDF*)malloc(BSDF_list.size() * sizeof(principled_BSDF));
-		
-
-		scene.num_of_bsdf = BSDF_list.size();
-		std::cout << "BSDF list : \n";
-		for (int i = 0; i < BSDF_list.size(); i++) {
-			scene.bsdf_list[i] = BSDF_list.at(i);
-			std::cout << " - " << BSDF_name.at(i) << "\n";
-		}
-	}*/
 	void BSDF_loader::clean() {
 		BSDF_list.clear();
 		BSDF_name.clear();

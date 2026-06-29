@@ -13,13 +13,14 @@
 #include <ppt/loaders/nanovdb_loader.h>
 #include <ppt/loaders/SDPT_loader.h>
 #include <ppt/wip/usd_scene_loader.h>
-#include <ppt/user/GUI.h>
+#include <ppt/user/gui/slider.h>
 
 #include <ppt/core/Mesh.h>
 #include <ppt/util/Matrix.h>
 #include <ppt/core/mesh_manager.h>
 
 #include <ppt/loaders/BVH_loader.h>
+#include <ppt/user/gui/options_interface.h>
 
 namespace penguinPT {
     __shared__ uint8_t* device_pixel_buffer;
@@ -103,7 +104,16 @@ namespace penguinPT {
         nanovdb::Vec3f vv = uu.cross(ww).normalize();
 
         nanovdb::Vec3f rayDirection = (uvX_cam * uu + uvY_cam * vv + rs.mainCam.zoom * ww).normalize();
-        nanovdb::math::Ray<float> first_ray = { rs.mainCam.position, rayDirection };
+
+        nanovdb::Vec3f camera_origin = rs.mainCam.position;
+        if (rs.mainCam.DOF_strength > 0.f) {
+            float RdoT = ww.dot(rayDirection);
+            nanovdb::Vec3f target = rs.mainCam.position + rayDirection * rs.mainCam.focal_distance / RdoT;
+            camera_origin += util::generateUniformSample(rs.rng_state) * rs.mainCam.DOF_strength;
+            rayDirection = (target - camera_origin).normalize();
+        }
+
+        nanovdb::math::Ray<float> first_ray = { camera_origin, rayDirection };
 
         nanovdb::Vec3f color = getColor(rs, first_ray, make_float2(uvX, uvY));
 
@@ -118,7 +128,7 @@ namespace penguinPT {
         // post processing
         
         color = util::mix(nanovdb::Vec3f(util::luminance(color)), color, rs.mainCam.saturation);
-        color = util::mix(nanovdb::Vec3f(0.5f), color, rs.mainCam.constrast);
+        color = util::mix(nanovdb::Vec3f(0.5f), color, rs.mainCam.contrast);
         color = color * rs.mainCam.exposure * rs.mainCam.multiplier;
 
         float vignette_factor = expf(-sqrtf(uvX_cam * uvX_cam + uvY_cam * uvY_cam) * 2.f);
@@ -142,7 +152,9 @@ namespace penguinPT {
     inline void callKernel(renderer_services& rs) {
         dim3 blockSize(8, 8, 1U);
         dim3 gridSize(int(rs.width / blockSize.x), int(rs.height / blockSize.y), 1U);
-        renderFrame_kernel <<< gridSize, blockSize >> > (rs, device_pixel_buffer, device_accum_buffer);
+
+        void* args[] = { &rs, &device_pixel_buffer, &device_accum_buffer };
+        cudaLaunchKernel((const void*)renderFrame_kernel, gridSize, blockSize, args);
     }
 
     inline void renderFrame(renderer_services& rs, sf::Texture* dsp_text) {
@@ -159,7 +171,7 @@ namespace penguinPT {
                     
                     int idx = x + y * rs.width;
 
-                    float blur_size = 0.001f;
+                    float blur_size = 0.001f;    
                     float uvX = (float)x / (float)rs.width + (rand01 * 2.f - 1.f) * blur_size;
                     float uvY = 1.f - (float)y / (float)rs.height + (rand01 * 2.f - 1.f) * blur_size;
                     float uvX_cam = uvX - 0.5f;
@@ -172,7 +184,16 @@ namespace penguinPT {
                     nanovdb::Vec3f vv = uu.cross(ww).normalize();
 
                     nanovdb::Vec3f rayDirection = (uvX_cam * uu + uvY_cam * vv + rs.mainCam.zoom * ww).normalize();
-                    nanovdb::math::Ray<float> first_ray = { rs.mainCam.position, rayDirection };
+
+                    nanovdb::Vec3f camera_origin = rs.mainCam.position;
+                    if (rs.mainCam.DOF_strength > 0.f) {
+                        float RdoT = ww.dot(rayDirection);
+                        nanovdb::Vec3f target = rs.mainCam.position + rayDirection * rs.mainCam.focal_distance / RdoT;
+                        camera_origin += util::generateUniformSampleHOST() * rs.mainCam.DOF_strength;
+                        rayDirection = (target - camera_origin).normalize();
+                    }
+
+                    nanovdb::math::Ray<float> first_ray = { camera_origin, rayDirection };
 
                     nanovdb::Vec3f color = getColor_host(rs, first_ray, make_float2(uvX, uvY));
 
@@ -184,7 +205,7 @@ namespace penguinPT {
 
                     // post processing
                     color = util::mix(nanovdb::Vec3f(util::luminance(color)), color, rs.mainCam.saturation);
-                    color = util::mix(nanovdb::Vec3f(0.5f), color, rs.mainCam.constrast);
+                    color = util::mix(nanovdb::Vec3f(0.5f), color, rs.mainCam.contrast);
                     color = color * rs.mainCam.exposure * rs.mainCam.multiplier;
 
                     float vignette_factor = expf(-sqrtf(uvX_cam * uvX_cam + uvY_cam * uvY_cam) * 2.f);
@@ -208,7 +229,7 @@ namespace penguinPT {
         dsp_text->update(rs.host_pixel_buffer);
     }
 
-    void save_screenshot(sf::Texture& tex) {
+    static void save_screenshot(sf::Texture& tex) {
         std::time_t result = std::time(nullptr);
 
         char buffer[26];
@@ -230,11 +251,19 @@ namespace penguinPT {
     extern "C" void run() 
     {
         renderer_services rs;
-        rs.check_CUDA_AVAILABLITY();
         rs.mainCam.speed = 500.f;
         rs.mainCam.zoom = 1.f;
-        rs.mainCam.position = { 0.f, 30.f, 15.f };
+        rs.mainCam.position = { 0.f, 0.f, 0.f };
         rs.is_rendering = false;
+
+        OptionsInterface user_interface;
+        user_interface.oiOnInit(&rs);
+
+        OptionsInterface::introWindow(5);
+
+        //rs.check_CUDA_AVAILABLITY();
+        user_interface.engineSelectorProcedure(&rs);
+        
 
         rs.fill_host_pixel_buffer();
         initCuda(rs);
@@ -244,7 +273,7 @@ namespace penguinPT {
         loader::nanovdb_loader loader02;
         loader::envmap_loader loader03;
         loader::SDPT_Loader scene_loader_sdpt;
-        loader::usd_scene_loader loader04;
+        loader::USDSceneLoader loader04;
         //loader::BSDF_loader loader05;
 
         texture_manager tex_manager;
@@ -252,117 +281,15 @@ namespace penguinPT {
         loader01.set_texture_manager(&tex_manager);
 
         /////////////////////////////////////// GUI ///////////////////////////////////////
-        GUI::text_manager text_manager("assets/GUI/Montserrat-Light.ttf");
-        GUI::GUI_manager main_GUI_manager;
-        main_GUI_manager.apply_text_manager(&text_manager);
+       
 
-        // add rect_shape
-        main_GUI_manager.add_rect_shape({ sf::Vector2f(0.f, 0.f),
-            sf::Vector2f(WINDOW_RES_X * (1.f / 30.f), WINDOW_RES_Y),
-            GUI::Color::medium,
-            true });
-        main_GUI_manager.add_rect_shape({ sf::Vector2f(WINDOW_RES_X * (1.f / 30.f), 0.f),
-            sf::Vector2f(WINDOW_RES_X, WINDOW_RES_Y * (1.f / 30.f)),
-            GUI::Color::medium,
-            false });
-        main_GUI_manager.add_rect_shape({ sf::Vector2f(WINDOW_RES_X * (1.f / 30.f), WINDOW_RES_Y * (1.f / 30.f)),
-            sf::Vector2f(WINDOW_RES_X, WINDOW_RES_Y * (1.f / 30.f)),
-            GUI::Color::medium,
-            false });
+        //loader04.load_usd_scene("untitled.usda");
 
-        // GUI
-        {
-            // title
-            main_GUI_manager.add_text_zone(GUI::text_zone({ WINDOW_RES_X * (1.f / 30.f), WINDOW_RES_Y * (1.f / 60.f) }, "title_text"));
-            main_GUI_manager.find_text_zone("title_text").char_type = GUI::Typography::title;
-            main_GUI_manager.find_text_zone("title_text").set_string("PenguinPT, version 0.0");
-
-            // buttons 
-            main_GUI_manager.add_button(GUI::button(main_GUI_manager.on_follow_text_zone("title_text"), "render:launch"));
-            main_GUI_manager.find_button("render:launch").char_type = GUI::Typography::title;
-            main_GUI_manager.find_button("render:launch").set_string("Launch render");
-            main_GUI_manager.find_button("render:launch").has_borders = false;
-
-            main_GUI_manager.add_button(GUI::button(main_GUI_manager.on_follow_button("render:launch"), "render:stop"));
-            main_GUI_manager.find_button("render:stop").char_type = GUI::Typography::title;
-            main_GUI_manager.find_button("render:stop").set_string("Stop render");
-            main_GUI_manager.find_button("render:stop").has_borders = false;
-
-            main_GUI_manager.add_button(GUI::button(main_GUI_manager.on_follow_button("render:stop"), "scene:new"));
-            main_GUI_manager.find_button("scene:new").char_type = GUI::Typography::title;
-            main_GUI_manager.find_button("scene:new").set_string("Load new scene");
-            main_GUI_manager.find_button("scene:new").has_borders = false;
-
-            main_GUI_manager.add_text_zone(GUI::text_zone({ WINDOW_RES_X * (1.f / 30.f + 2.f / 3.f), WINDOW_RES_Y * (2.f / 30.f) }, "Camera:options:text"));
-            main_GUI_manager.find_text_zone("Camera:options:text").char_type = GUI::Typography::title;
-            main_GUI_manager.find_text_zone("Camera:options:text").set_string("Camera options");
-            main_GUI_manager.find_text_zone("Camera:options:text").define_size({ WINDOW_RES_X * (1. - (1.f / 30.f + 2.f / 3.f)), 0.f });
-            main_GUI_manager.find_text_zone("Camera:options:text").has_b = true;
-
-            // camera speed
-            main_GUI_manager.add_text_zone(GUI::text_zone(main_GUI_manager.on_follow_text_zone("Camera:options:text", 'Y'), "Camera:speed:title"));
-            main_GUI_manager.find_text_zone("Camera:speed:title").char_type = GUI::Typography::body;
-            main_GUI_manager.find_text_zone("Camera:speed:title").set_string("Camera speed");
-            main_GUI_manager.find_text_zone("Camera:speed:title").define_size({ WINDOW_RES_X * (1. - (1.f / 30.f + 2.f / 3.f)), 0.f });
-            main_GUI_manager.add_slider(GUI::slider(main_GUI_manager.on_follow_text_zone("Camera:speed:title", 'Y'), { WINDOW_RES_X * (1. - (1.f / 30.f + 2.f / 3.f)), WINDOW_RES_Y * (1.f / 60.f) }, "camera:speed"));
-            main_GUI_manager.find_slider("camera:speed").min_bounds = 1.f;
-            main_GUI_manager.find_slider("camera:speed").max_bounds = 500.f;
-            main_GUI_manager.find_slider("camera:speed").slider_percentage = 0.1f;
-            main_GUI_manager.find_slider("camera:speed").interpolation_value = 0.1f;
-
-            // camera zoom
-            main_GUI_manager.add_text_zone(GUI::text_zone(main_GUI_manager.on_follow_slider("camera:speed", 'Y'), "camera:zoom:title"));
-            main_GUI_manager.find_text_zone("camera:zoom:title").char_type = GUI::Typography::body;
-            main_GUI_manager.find_text_zone("camera:zoom:title").set_string("Camera zoom");
-            main_GUI_manager.find_text_zone("camera:zoom:title").define_size({ WINDOW_RES_X * (1. - (1.f / 30.f + 2.f / 3.f)), 0.f });
-            main_GUI_manager.add_slider(GUI::slider(main_GUI_manager.on_follow_text_zone("camera:zoom:title", 'Y'), { WINDOW_RES_X * (1. - (1.f / 30.f + 2.f / 3.f)), WINDOW_RES_Y * (1.f / 60.f) }, "camera:zoom"));
-            main_GUI_manager.find_slider("camera:zoom").min_bounds = 0.6f;
-            main_GUI_manager.find_slider("camera:zoom").max_bounds = 10.f;
-            main_GUI_manager.find_slider("camera:zoom").slider_percentage = 0.1f;
-            main_GUI_manager.find_slider("camera:zoom").interpolation_value = 0.1f;
-
-            main_GUI_manager.add_text_zone(GUI::text_zone(main_GUI_manager.on_follow_slider("camera:zoom", 'Y'), "Envmap:title"));
-            main_GUI_manager.find_text_zone("Envmap:title").char_type = GUI::Typography::title;
-            main_GUI_manager.find_text_zone("Envmap:title").set_string("Envmap");
-            main_GUI_manager.find_text_zone("Envmap:title").define_size({ WINDOW_RES_X * (1. - (1.f / 30.f + 2.f / 3.f)), 0.f });
-            main_GUI_manager.find_text_zone("Envmap:title").has_b = true;
-
-            // loaders
-            main_GUI_manager.add_button(GUI::button(main_GUI_manager.on_follow_text_zone("Envmap:title", 'Y'), "Envmap:load"));
-            main_GUI_manager.find_button("Envmap:load").char_type = GUI::Typography::body;
-            main_GUI_manager.find_button("Envmap:load").set_string("Change environnement map");
-            main_GUI_manager.find_button("Envmap:load").define_size({ WINDOW_RES_X * (1. - (1.f / 30.f + 2.f / 3.f)), 0.f });
-            main_GUI_manager.find_button("Envmap:load").has_borders = false;
-
-            // envmap strength
-            main_GUI_manager.add_text_zone(GUI::text_zone(main_GUI_manager.on_follow_button("Envmap:load", 'Y'), "Envmap:strength:title"));
-            main_GUI_manager.find_text_zone("Envmap:strength:title").char_type = GUI::Typography::body;
-            main_GUI_manager.find_text_zone("Envmap:strength:title").set_string("Envmap strength");
-            main_GUI_manager.find_text_zone("Envmap:strength:title").define_size({ WINDOW_RES_X * (1. - (1.f / 30.f + 2.f / 3.f)), 0.f });
-            main_GUI_manager.add_slider(GUI::slider(main_GUI_manager.on_follow_text_zone("Envmap:strength:title", 'Y'), { WINDOW_RES_X * (1. - (1.f / 30.f + 2.f / 3.f)), WINDOW_RES_Y * (1.f / 60.f) }, "Envmap:strength"));
-            main_GUI_manager.find_slider("Envmap:strength").min_bounds = 0.f;
-            main_GUI_manager.find_slider("Envmap:strength").max_bounds = 1.f;
-            main_GUI_manager.find_slider("Envmap:strength").slider_percentage = 0.1f;
-            main_GUI_manager.find_slider("Envmap:strength").interpolation_value = 1.f;
-
-            // envmap angle
-            main_GUI_manager.add_text_zone(GUI::text_zone(main_GUI_manager.on_follow_slider("Envmap:strength", 'Y'), "Envmap:angle:title"));
-            main_GUI_manager.find_text_zone("Envmap:angle:title").char_type = GUI::Typography::body;
-            main_GUI_manager.find_text_zone("Envmap:angle:title").set_string("Envmap angle");
-            main_GUI_manager.find_text_zone("Envmap:angle:title").define_size({ WINDOW_RES_X * (1. - (1.f / 30.f + 2.f / 3.f)), 0.f });
-            main_GUI_manager.add_slider(GUI::slider(main_GUI_manager.on_follow_text_zone("Envmap:angle:title", 'Y'), { WINDOW_RES_X * (1. - (1.f / 30.f + 2.f / 3.f)), WINDOW_RES_Y * (1.f / 60.f) }, "Envmap:angle"));
-            main_GUI_manager.find_slider("Envmap:angle").min_bounds = 1.f;
-            main_GUI_manager.find_slider("Envmap:angle").max_bounds = -1.f;
-            main_GUI_manager.find_slider("Envmap:angle").slider_percentage = 0.1f;
-            main_GUI_manager.find_slider("Envmap:angle").interpolation_value = 0.5f;
-        }
-        loader04.load_usd_scene("untitled.usda");
-
-        std::string scene_path;
-        std::cout << "Choose file to load (with extension) : ";
-        std::cin >> scene_path;
-
-        scene_loader_sdpt.forceLoad(scene_path, &loader01, &loader02, &loader03);
+        //std::string scene_path;
+        //std::cout << "Choose file to load (with extension) : ";
+        //std::cin >> scene_path;
+        scene_loader_sdpt.set_GPU_Compat(rs.CUDA_CAPABLE_GPU);
+        scene_loader_sdpt.forceLoad(&loader01, &loader02, &loader03);
         
         BVH* bvh_ptr = loader01.getBVH(rs.CUDA_CAPABLE_GPU);
         std::vector<Mesh> try_mesh;
@@ -377,104 +304,60 @@ namespace penguinPT {
         loader03.send_to_gpu(rs.scene.environnement_map, cudaFilterModeLinear);
 
         /////////////////////////////////////// Window and display ///////////////////////////////////////
-        sf::RenderWindow window(sf::VideoMode(WINDOW_RES_X, WINDOW_RES_Y), "PenguinPT, v0.0");
+        sf::RenderWindow window_render(sf::VideoMode(WINDOW_RES_X, WINDOW_RES_Y), "PenguinPT, v0.0");
+        sf::RenderWindow window_options(sf::VideoMode(512, 512), "PenguinPT, v0.0", sf::Style::Close);
+        window_options.setIcon(32, 32, user_interface.getTextureFromIndex(0).copyToImage().getPixelsPtr());
         
         sf::Texture displayTex;
         displayTex.create(rs.width, rs.height);
         displayTex.update(rs.host_pixel_buffer);
         sf::Sprite diplaySprite(displayTex);
-        diplaySprite.setPosition({ WINDOW_RES_X * (1.f / 30.f), WINDOW_RES_Y * (2.f / 30.f) });
 
         sf::Clock mainClock;
 
-        while (window.isOpen())
+        while (window_options.isOpen())
         {
             sf::Event event;
-            while (window.pollEvent(event))
+            while (window_render.pollEvent(event))
             {
-                if (event.type == sf::Event::Closed)
-                    window.close();
+                if (event.type == sf::Event::Closed) {
+                    window_render.close();
+                }
+            }
+            while (window_options.pollEvent(event))
+            {
+                if (event.type == sf::Event::Closed) {
+                    window_options.close();
+                    window_render.close();
+                }
             }
 
-            rs.mainCam.move(&window, rs.delta_time, &rs.frame_index);
-            sf::Vector2f mouse_pos = GUI::GUI_utility::get_mouse_inWindow(&window);
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::M)) {
-                save_screenshot(displayTex);
+            if (window_render.hasFocus() || !rs.focus_needed) {
+                if (!rs.lock_camera) rs.mainCam.move(&window_render, rs.delta_time, &rs.frame_index);
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::M)) {
+                    save_screenshot(displayTex);
+                }
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::Multiply)) {
+                    rs.is_rendering = true;
+                    rs.frame_index = 0;
+                }
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::Divide)) {
+                    rs.is_rendering = false;
+                    rs.frame_index = 0;
+                }
             }
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Multiply)) {
-                rs.is_rendering = true;
-                rs.frame_index = 0;
-            }
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Divide)) {
-                rs.is_rendering = false;
-                rs.frame_index = 0;
-            }
-            if (main_GUI_manager.find_button("render:launch").is_button_pressed(mouse_pos)) {
-                rs.is_rendering = true;
-                rs.frame_index = 0;
-            }
-            if (main_GUI_manager.find_button("render:stop").is_button_pressed(mouse_pos)) {
-                rs.is_rendering = false;
-                rs.frame_index = 0;
-            }
-            /*if (main_GUI_manager.find_button("Envmap:load").is_button_pressed(mouse_pos)) {
-                rs.clean_envmap();
-                loader03.clean();
-
-                std::string a;
-                std::cout << "Choose environnement map name (do not write extension): ";
-                std::cin >> a;
-
-                loader03.load_from_file("assets/hdris/" + a + ".hdr");
-                loader03.send_to_gpu(rs.scene.environnement_map, cudaFilterModeLinear);
-            }*/
-            if (main_GUI_manager.find_button("scene:new").is_button_pressed(mouse_pos)) {
-
-                if (rs.CUDA_CAPABLE_GPU) cudaFree(bvh_ptr);
-                else free(bvh_ptr);
-
-                rs.clean_envmap();
-                rs.clean_solid();
-                rs.clean_volumes();
-
-                loader01.clean();
-                loader03.clean();
-                loader02.clean();
-
-                tex_manager.clean();
-
-                try_mesh.clear();
-
-                std::cout << "Choose file to load (with extension) : ";
-                std::cin >> scene_path;
-
-                scene_loader_sdpt.forceLoad(scene_path, &loader01, &loader02, &loader03);
-
-                bvh_ptr = loader01.getBVH(rs.CUDA_CAPABLE_GPU);
-
-                try_mesh.push_back(Mesh(bvh_ptr));
-                try_mesh.back().setTransforms(math::Mat4f());
-
-                rs.scene.setBSDFList(loader01.bsdf_loader.BSDF_list, rs.CUDA_CAPABLE_GPU);
-                rs.scene.setTLAS(try_mesh, rs.CUDA_CAPABLE_GPU);
-                rs.scene.setVolumeList(loader02.vol_list, rs.CUDA_CAPABLE_GPU);
-
-                loader03.send_to_gpu(rs.scene.environnement_map, cudaFilterModeLinear);
-                
-            }
-            rs.mainCam.speed = main_GUI_manager.find_slider("camera:speed").update_slider(mouse_pos);
-            rs.scene.environnement_map.strength = main_GUI_manager.find_slider("Envmap:strength").update_slider(mouse_pos);
-            rs.scene.environnement_map.angle = main_GUI_manager.find_slider("Envmap:angle").update_slider(mouse_pos);
-            if(!rs.is_rendering) rs.mainCam.zoom = main_GUI_manager.find_slider("camera:zoom").update_slider(mouse_pos);
-
             if (!rs.is_rendering) rs.frame_index = 0;
-            
+            user_interface.oiUpdate(&window_options, &rs);
+
             renderFrame(rs, &displayTex);
             
-            window.clear();
-            window.draw(diplaySprite);
-            main_GUI_manager.draw_GUI(&window);
-            window.display();
+            window_render.clear();
+            window_render.draw(diplaySprite);
+            window_render.display();
+
+            window_options.clear();
+            user_interface.oiDraw(&window_options);
+            window_options.display();
 
             rs.delta_time = mainClock.restart().asSeconds();
             //gotoxy(1, 9);
@@ -482,6 +365,8 @@ namespace penguinPT {
             //printf("FPS : %f\n", fps);
             rs.frame_index++;
         }
+
+        user_interface.oiClear();
 
         rs.clean_all();
 

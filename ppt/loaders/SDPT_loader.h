@@ -19,18 +19,25 @@ namespace penguinPT::loader {
 		SDPT_Loader() {}
 		~SDPT_Loader() {}
 
+#ifndef WINDOWS_VERSION
 		bool load_sdpt(std::string path, obj_loader* obj_ref, nanovdb_loader* nvdb_ref, envmap_loader* envmap_ref);
-		void forceLoad(std::string path, obj_loader* obj_ref, nanovdb_loader* nvdb_ref, envmap_loader* envmap_ref);
+#else
+		bool load_sdpt(LPWSTR path, obj_loader* obj_ref, nanovdb_loader* nvdb_ref, envmap_loader* envmap_ref);
+#endif
+		void forceLoad(obj_loader* obj_ref, nanovdb_loader* nvdb_ref, envmap_loader* envmap_ref);
 		void set_GPU_Compat(bool gpu) { GPU_available = gpu; };
 	private:
 		bool GPU_available = true;
 	};
 }
 
+#ifndef WINDOWS_VERSION
 bool penguinPT::loader::SDPT_Loader::load_sdpt(std::string path, obj_loader* obj_ref, nanovdb_loader* nvdb_ref, envmap_loader* envmap_ref) {
-	std::ifstream file("assets/scenes/" + path);
+#else
+bool penguinPT::loader::SDPT_Loader::load_sdpt(LPWSTR path, obj_loader * obj_ref, nanovdb_loader * nvdb_ref, envmap_loader * envmap_ref) {
+#endif
 
-
+	std::ifstream file(path);
 
 	if (file.is_open()) {
 		std::string line;
@@ -71,26 +78,46 @@ bool penguinPT::loader::SDPT_Loader::load_sdpt(std::string path, obj_loader* obj
 				}
 				else if (tokens.at(0) == "Envmap") {
 					std::string name = file_util::remove_quote(tokens.at(1));
-					
+#ifndef WINDOWS_VERSION == 0
 					if (!envmap_ref->load_from_file("assets/hdris/" + name)) return false;
+#else
+					if (!envmap_ref->load_from_file(name)) return false;
+#endif
 				}
 
 			}
 		}
+
+		file.close();
 		return true;
 	}
 	return false;
 }
-void penguinPT::loader::SDPT_Loader::forceLoad(std::string path, obj_loader* obj_ref, nanovdb_loader* nvdb_ref, envmap_loader* envmap_ref) {
+void penguinPT::loader::SDPT_Loader::forceLoad(obj_loader* obj_ref, nanovdb_loader* nvdb_ref, envmap_loader* envmap_ref) {
+#ifdef WINDOWS_VERSION
+	std::filesystem::path initial_path = std::filesystem::current_path();
+	LPWSTR path = file_util::windowsFileOpen(L"Select SDPT file", L"SDPT scene (*.sdpt)\0*.sdpt\0", L"assets/scenes/");
 	if (!load_sdpt(path, obj_ref, nvdb_ref, envmap_ref)) {
+#else
+	std::cout << "Available files : \n";
+	for (auto& file : std::filesystem::directory_iterator("assets/scenes/")) {
+		if(file.path().extension() == ".sdpt")
+			std::cout << " * " << file_util::remove_quote(file.path().filename().string()) << std::endl;
+	}
+	std::string path;
+	std::cout << "Choose scene to load (with extension) : ";
+	std::cin >> path;
+	if (!load_sdpt("assets/scenes/" + path, obj_ref, nvdb_ref, envmap_ref)) {
+#endif
 		std::cout << "Failed to load scene " << path << ".\n";
 		obj_ref->clean();
 		nvdb_ref->clean();
 		envmap_ref->clean();
 
-		std::cout << "Choose scene to load (with extension) : ";
-		std::cin >> path;
-
-		forceLoad(path, obj_ref, nvdb_ref, envmap_ref);
+		forceLoad(obj_ref, nvdb_ref, envmap_ref);
 	}
+
+#ifdef WINDOWS_VERSION
+	std::filesystem::current_path(initial_path);
+#endif
 }

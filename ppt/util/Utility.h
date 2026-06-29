@@ -4,9 +4,12 @@
 
 #pragma once
 
+#include <GL/glew.h>
+
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
 #include <curand_kernel.h>
+#include <cuda_gl_interop.h>
 
 // nano VDB
 #include <nanovdb/io/IO.h>
@@ -27,6 +30,10 @@
 #include <filesystem>
 #include <exception>
 
+// windows
+#include <Windows.h>
+#include <tchar.h>
+
 #include <ppt/util/options.h>
 
 typedef curandStatePhilox4_32_10_t Rand_state;
@@ -44,7 +51,7 @@ typedef curandStatePhilox4_32_10_t Rand_state;
 #define PI_OVER_4 0.78539816339744830961566084581988f
 #define PI_OVER_2 1.5707963267948966192313216916398f
 
-
+#define error_log(seq) std::cout << "ERROR : " << seq << std::endl
 
 // NEED TO MOVE THIS TO UTILITY
 #define CUDA_CHECK(expr) { cudaError_t err = expr; if(err != CUDA_SUCCESS) { printf("CUDA ERROR AT LINE %i IN %s : %s \n", __LINE__, __FILE__, cudaGetErrorString(err)); exit(99); }}
@@ -153,6 +160,14 @@ namespace penguinPT::util {
 	__device__ inline nanovdb::Vec3f generateUniformSample(Rand_state& rand_state) {
 		float z = randC(&rand_state) * 2.0f - 1.0f;
 		float a = randC(&rand_state) * PI * 2.f;
+		float r = sqrtf(1.0f - z * z);
+		float x = r * cosf(a);
+		float y = r * sinf(a);
+		return { x, y, z };
+	}
+	__host__ inline nanovdb::Vec3f generateUniformSampleHOST() {
+		float z = rand01 * 2.0f - 1.0f;
+		float a = rand01 * PI * 2.f;
 		float r = sqrtf(1.0f - z * z);
 		float x = r * cosf(a);
 		float y = r * sinf(a);
@@ -279,5 +294,34 @@ namespace penguinPT::file_util {
 
 	void alinea(unsigned int lv) {
 		for (unsigned int i = 0U; i < lv; i++) std::cout << "  ";
+	}
+
+#ifdef WINDOWS_VERSION
+	LPWSTR windowsFileOpen(LPCWSTR title, LPCWSTR args = L"All (*.*)\0*.*\0", LPCWSTR root_dir = L"") {
+		OPENFILENAME ofn;
+		TCHAR tmp[1024];
+		tmp[0] = '\0';
+		ZeroMemory(&ofn, sizeof(OPENFILENAMEW));
+		ofn.lStructSize = sizeof(OPENFILENAMEW);
+		ofn.lpstrFile = tmp;
+		ofn.nMaxFile = 1024;
+		ofn.lpstrTitle = title;
+		ofn.lpstrFilter = args;
+		ofn.lpstrInitialDir = root_dir;
+		ofn.Flags = OFN_LONGNAMES | OFN_EXPLORER; // | OFN_ALLOWMULTISELECT  ;
+		bool res = GetOpenFileName(&ofn);
+		//printf("Code de sortie : %d\n", res);
+		return ofn.lpstrFile;
+	}
+#endif
+
+	std::string removeFileName(std::string src) {
+		bool is_fn = true;
+		std::string res;
+		for (int i = src.size() - 1; i >= 0; i--) {
+			if (src.at(i) == '/' || src.at(i) == '\\') is_fn = false;
+			if (!is_fn) res = src.at(i) + res;
+		}
+		return res;
 	}
 }

@@ -23,8 +23,6 @@ namespace penguinPT {
 		float g;
 
 		// transform
-		//float scale = 1.f;
-		//nanovdb::Vec3f position = { 0.f, 0.f, 0.f };
 		math::Mat4f transform_matrix;
 		math::Mat4f transform_matrix_inverse;
 

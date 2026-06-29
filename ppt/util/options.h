@@ -4,6 +4,8 @@
 
 #pragma once
 
+#define WINDOWS_VERSION 
+
 // options
 #define QUICK_DIFFUSE
 #define MAX_DISTANCE 1.0e30f
@@ -16,12 +18,10 @@
 #define TLAS_INTERSECTOR_STACK_SIZE 64
 #define BVH_INTERSECTOR_STACK_SIZE 32
 
-
 #define BASE_BSDF 1 // pure black BSDF
 #define BSDF_TROUGH_ID 0 // for volumes
 
 #define MODE_TRIANGLE 1
-
 
 // debug things
 //#define WHITE_FURNACE
@@ -31,3 +31,5 @@
 // this is caused by unworking envmap sampling I don't know why
 #define DIRECT_LIGHTNING
 //#define EXPERIMENTAL_CAUSTICS
+
+//#define NO_SKY_NO_BOUNCE
