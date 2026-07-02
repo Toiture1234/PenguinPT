@@ -77,7 +77,7 @@ void penguinPT::camera::move(sf::RenderWindow* window, float delta_t, unsigned i
     float angleY = (window->getSize().y * 0.5 - mousePosition.y) / 180.f;
 
     nanovdb::Vec3f angles_relative = { angleX - last_angles_noPressed[0], angleY - last_angles_noPressed[1], 0.f };
-    if (sf::Mouse::isButtonPressed(sf::Mouse::Middle)) { // TODO : check if mouse is in screen rect
+    if (sf::Mouse::isButtonPressed(sf::Mouse::Right)) {
         angles = last_true_angles + angles_relative;
         *frame_index = 0;
         angles[1] = util::clamp(angles[1], -PI * 0.45f, PI * 0.45f);

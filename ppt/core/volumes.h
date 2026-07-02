@@ -46,6 +46,18 @@ namespace penguinPT {
 			
 			return true;
 		}
+		__hostdev__ bool intersect_volume(nanovdb::math::Ray<float> ray, float& t_out) {
+			ray = transform_matrix_inverse.transformRay(ray);
+			if (!ray.clip(density_grid->worldBBox())) return false;
+			float t0 = ray.t0();
+			float t1 = ray.t1();
+
+			bool inside = t0 <= 0.01f;
+			float t = (inside ? t1 : t0);
+			if (t > t_out || t < 0.001f) return false;
+			t_out = t;
+			return true;
+		}
 		__hostdev__ float get_density(nanovdb::Vec3f pos, nanovdb::Vec3f offset) {
 			auto acc = density_grid->getAccessor();
 			pos = transform_matrix_inverse.transformPoint(pos);

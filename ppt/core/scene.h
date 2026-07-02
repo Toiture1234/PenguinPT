@@ -1,3 +1,7 @@
+// Copyright 2026 Toiture1234
+// 
+// SPDX-License-Identifier : MIT
+
 #pragma once
 
 #include <ppt/core/mesh_manager.h>
@@ -19,6 +23,8 @@ namespace penguinPT {
 		Envmap environnement_map;
 
 		__hostdev__ bool intersectScene(nanovdb::math::Ray<float> ray, hit_info& info);
+		__hostdev__ Volume* getIntersectedVolume(nanovdb::Ray<float> ray);
+
 		void clearScene(bool is_gpu_available = false);
 
 		void setTLAS(std::vector<Mesh>& mesh_src, bool is_gpu_available = false);
@@ -127,3 +133,15 @@ __hostdev__ bool penguinPT::Scene::intersectScene(nanovdb::math::Ray<float> ray,
 
 	return hit;
 }
+
+__hostdev__ penguinPT::Volume* penguinPT::Scene::getIntersectedVolume(nanovdb::Ray<float> ray) {
+	float t = MAX_DISTANCE;
+	Volume* res = nullptr;
+	for (unsigned int i = 0; i < volume_count; i++) {
+		if (volume_list[i].intersect_volume(ray, t)) {
+			res = &volume_list[i];
+		}
+	}
+	return res;
+}
+

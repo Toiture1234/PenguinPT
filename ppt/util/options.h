@@ -23,6 +23,8 @@
 
 #define MODE_TRIANGLE 1
 
+#define ANTIALIAS_SIZE 0.0005f
+
 // debug things
 //#define WHITE_FURNACE
 //#define SEE_NORMALS

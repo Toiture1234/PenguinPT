@@ -9,6 +9,7 @@
 
 #include <ppt/core/renderer_services.h>
 #include <ppt/core/pathtracer.h>
+#include <ppt/core/envmap.h>
 #include <ppt/loaders/obj_loader.h>
 #include <ppt/loaders/nanovdb_loader.h>
 #include <ppt/loaders/SDPT_loader.h>
@@ -21,6 +22,8 @@
 
 #include <ppt/loaders/BVH_loader.h>
 #include <ppt/user/gui/options_interface.h>
+
+#include <ppt/core/application.h>
 
 namespace penguinPT {
     __shared__ uint8_t* device_pixel_buffer;
@@ -53,7 +56,7 @@ namespace penguinPT {
         hit_info info;
         info.t = 1e10f;
         
-        if(rs.is_rendering)
+        if(rs.is_rendering || rs.first_frame_mode)
             return volume_pathtrace_device_spectral(rs, ray);
         //if (rs.scene.intersectScene_full(ray, info)) {
         if (rs.scene.intersectScene(ray, info)) {
@@ -91,7 +94,7 @@ namespace penguinPT {
 
         curand_init(idx, 0, 4096 * rs.frame_index, &rs.rng_state);
 
-        float blur_size = 0.001f;
+        float blur_size = ANTIALIAS_SIZE;
         float uvX = (float)x / (float)rs.width + (randC(&rs.rng_state) * 2.f - 1.f) * blur_size;
         float uvY = 1.f - (float)y / (float)rs.height + (randC(&rs.rng_state) * 2.f - 1.f) * blur_size;
         float uvX_cam = uvX - 0.5f;
@@ -171,7 +174,7 @@ namespace penguinPT {
                     
                     int idx = x + y * rs.width;
 
-                    float blur_size = 0.001f;    
+                    float blur_size = ANTIALIAS_SIZE;
                     float uvX = (float)x / (float)rs.width + (rand01 * 2.f - 1.f) * blur_size;
                     float uvY = 1.f - (float)y / (float)rs.height + (rand01 * 2.f - 1.f) * blur_size;
                     float uvX_cam = uvX - 0.5f;
@@ -229,89 +232,46 @@ namespace penguinPT {
         dsp_text->update(rs.host_pixel_buffer);
     }
 
-    static void save_screenshot(sf::Texture& tex) {
-        std::time_t result = std::time(nullptr);
-
-        char buffer[26];
-        
-        time(&result);
-        ctime_s(buffer, sizeof(buffer), &result);
-
-        std::string name;
-        for (int i = 0; i < strlen(buffer); i++) { // avoid line return character
-            if (buffer[i] == ' ' || buffer[i] == ':') name += '_';
-            else if (buffer[i] == '\n') break;
-            else name += buffer[i];
-        }
-
-        sf::Image saver = tex.copyToImage();
-        saver.saveToFile("saves/screenshots/" + name + ".png");
-        std::cout << "Image saved as" << name << ".png\n";
-    }
+    
     extern "C" void run() 
     {
-        renderer_services rs;
-        rs.mainCam.speed = 500.f;
-        rs.mainCam.zoom = 1.f;
-        rs.mainCam.position = { 0.f, 0.f, 0.f };
-        rs.is_rendering = false;
+        Application penguinPTApp;
+        penguinPTApp.initApplication();
+        initCuda(penguinPTApp.rs);
 
-        OptionsInterface user_interface;
-        user_interface.oiOnInit(&rs);
+        penguinPTApp.initLoaders();
 
-        OptionsInterface::introWindow(5);
+        penguinPTApp.scene_ressource_loader.loader_sdpt.forceLoad(
+            &penguinPTApp.scene_ressource_loader.loader_obj, 
+            &penguinPTApp.scene_ressource_loader.loader_nvdb,
+            &penguinPTApp.scene_ressource_loader.loader_envmap);
 
-        //rs.check_CUDA_AVAILABLITY();
-        user_interface.engineSelectorProcedure(&rs);
-        
-
-        rs.fill_host_pixel_buffer();
-        initCuda(rs);
-
-        /////////////////////////////////////// loaders ///////////////////////////////////////
-        loader::obj_loader loader01;
-        loader::nanovdb_loader loader02;
-        loader::envmap_loader loader03;
-        loader::SDPT_Loader scene_loader_sdpt;
-        loader::USDSceneLoader loader04;
-        //loader::BSDF_loader loader05;
-
-        texture_manager tex_manager;
-
-        loader01.set_texture_manager(&tex_manager);
-
-        /////////////////////////////////////// GUI ///////////////////////////////////////
-       
-
-        //loader04.load_usd_scene("untitled.usda");
-
-        //std::string scene_path;
-        //std::cout << "Choose file to load (with extension) : ";
-        //std::cin >> scene_path;
-        scene_loader_sdpt.set_GPU_Compat(rs.CUDA_CAPABLE_GPU);
-        scene_loader_sdpt.forceLoad(&loader01, &loader02, &loader03);
-        
-        BVH* bvh_ptr = loader01.getBVH(rs.CUDA_CAPABLE_GPU);
+        penguinPTApp.m_bvh_ptr = penguinPTApp.scene_ressource_loader.loader_obj.getBVH(penguinPTApp.rs.CUDA_CAPABLE_GPU);
         std::vector<Mesh> try_mesh;
 
-        try_mesh.push_back(Mesh(bvh_ptr));
+        try_mesh.push_back(Mesh(penguinPTApp.m_bvh_ptr));
         try_mesh.back().setTransforms(math::Mat4f());
-        
-        rs.scene.setBSDFList(loader01.bsdf_loader.BSDF_list, rs.CUDA_CAPABLE_GPU);
-        rs.scene.setTLAS(try_mesh, rs.CUDA_CAPABLE_GPU);
-        rs.scene.setVolumeList(loader02.vol_list, rs.CUDA_CAPABLE_GPU);
 
-        loader03.send_to_gpu(rs.scene.environnement_map, cudaFilterModeLinear);
+        penguinPTApp.rs.scene.setBSDFList(penguinPTApp.scene_ressource_loader.loader_obj.bsdf_loader.BSDF_list, penguinPTApp.rs.CUDA_CAPABLE_GPU);
+        penguinPTApp.rs.scene.setTLAS(try_mesh, penguinPTApp.rs.CUDA_CAPABLE_GPU);
+        penguinPTApp.rs.scene.setVolumeList(penguinPTApp.scene_ressource_loader.loader_nvdb.vol_list, penguinPTApp.rs.CUDA_CAPABLE_GPU);
+
+        penguinPTApp.scene_ressource_loader.loader_envmap.send_to_gpu(penguinPTApp.rs.scene.environnement_map, cudaFilterModeLinear);
 
         /////////////////////////////////////// Window and display ///////////////////////////////////////
-        sf::RenderWindow window_render(sf::VideoMode(WINDOW_RES_X, WINDOW_RES_Y), "PenguinPT, v0.0");
-        sf::RenderWindow window_options(sf::VideoMode(512, 512), "PenguinPT, v0.0", sf::Style::Close);
-        window_options.setIcon(32, 32, user_interface.getTextureFromIndex(0).copyToImage().getPixelsPtr());
+        sf::RenderWindow window_render(sf::VideoMode(WINDOW_RES_X, WINDOW_RES_Y), "PenguinPT -- Render");
+        sf::RenderWindow window_options(sf::VideoMode(512, 512), "PenguinPT, V1.0.0", sf::Style::Close);
+        window_options.setIcon(32, 32, penguinPTApp.user_interface.getTextureFromIndex(0).copyToImage().getPixelsPtr());
         
         sf::Texture displayTex;
-        displayTex.create(rs.width, rs.height);
-        displayTex.update(rs.host_pixel_buffer);
+        displayTex.create(penguinPTApp.rs.width, penguinPTApp.rs.height);
+        displayTex.update(penguinPTApp.rs.host_pixel_buffer);
         sf::Sprite diplaySprite(displayTex);
+
+        {
+            sf::Vector2u wnd_size = penguinPTApp.getViewportResolution();
+            window_render.setView(sf::View(sf::FloatRect({0,0}, (sf::Vector2f)wnd_size)));
+        }
 
         sf::Clock mainClock;
 
@@ -332,53 +292,50 @@ namespace penguinPT {
                 }
             }
 
-            if (window_render.hasFocus() || !rs.focus_needed) {
-                if (!rs.lock_camera) rs.mainCam.move(&window_render, rs.delta_time, &rs.frame_index);
+            if (window_render.hasFocus() || !penguinPTApp.rs.focus_needed) {
+                if (!penguinPTApp.rs.lock_camera) penguinPTApp.rs.mainCam.move(&window_render, penguinPTApp.rs.delta_time, &penguinPTApp.rs.frame_index);
                 if (sf::Keyboard::isKeyPressed(sf::Keyboard::M)) {
                     save_screenshot(displayTex);
                 }
                 if (sf::Keyboard::isKeyPressed(sf::Keyboard::Multiply)) {
-                    rs.is_rendering = true;
-                    rs.frame_index = 0;
+                    penguinPTApp.rs.is_rendering = true;
+                    penguinPTApp.rs.frame_index = 0;
                 }
                 if (sf::Keyboard::isKeyPressed(sf::Keyboard::Divide)) {
-                    rs.is_rendering = false;
-                    rs.frame_index = 0;
+                    penguinPTApp.rs.is_rendering = false;
+                    penguinPTApp.rs.frame_index = 0;
                 }
             }
-            if (!rs.is_rendering) rs.frame_index = 0;
-            user_interface.oiUpdate(&window_options, &rs);
+            if (!penguinPTApp.rs.focus_needed && window_render.hasFocus() && !penguinPTApp.rs.lock_camera) window_options.requestFocus();
+            if (!penguinPTApp.rs.is_rendering || penguinPTApp.rs.first_frame_mode) penguinPTApp.rs.frame_index = 0;
+            penguinPTApp.user_interface.oiUpdate(
+                &window_options, 
+                &penguinPTApp.rs, 
+                &displayTex, 
+                &penguinPTApp.scene_ressource_loader.loader_obj,
+                &penguinPTApp.scene_ressource_loader.loader_nvdb,
+                &penguinPTApp.scene_ressource_loader.loader_envmap, 
+                &penguinPTApp.scene_ressource_loader.loader_sdpt,
+                penguinPTApp.m_bvh_ptr);
 
-            renderFrame(rs, &displayTex);
+            if(window_render.isOpen()) renderFrame(penguinPTApp.rs, &displayTex);
             
             window_render.clear();
             window_render.draw(diplaySprite);
             window_render.display();
 
             window_options.clear();
-            user_interface.oiDraw(&window_options);
+            penguinPTApp.user_interface.oiDraw(&window_options);
             window_options.display();
 
-            rs.delta_time = mainClock.restart().asSeconds();
+            penguinPTApp.rs.delta_time = mainClock.restart().asSeconds();
             //gotoxy(1, 9);
-            float fps = 1.f / rs.delta_time;
+            float fps = 1.f / penguinPTApp.rs.delta_time;
             //printf("FPS : %f\n", fps);
-            rs.frame_index++;
+            penguinPTApp.rs.frame_index++;
         }
 
-        user_interface.oiClear();
-
-        rs.clean_all();
-
-        if (rs.CUDA_CAPABLE_GPU) cudaFree(bvh_ptr);
-        else free(bvh_ptr);
-
-        loader01.clean();
-        loader03.clean();
-        loader02.clean();
-
-        tex_manager.clean();
-
-        endCuda(rs);
+        penguinPTApp.clean();
+        endCuda(penguinPTApp.rs);
     }
 }

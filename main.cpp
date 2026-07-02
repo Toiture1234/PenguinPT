@@ -16,21 +16,11 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <windows.h>
-//#pragma comment(linker, "/SUBSYSTEM:windows /ENTRY:mainCRTStartup")
-
 namespace penguinPT {
 	extern "C" void run();
 }
-// Console (/SUBSYSTEM:CONSOLE)
+
 int main() {
 	penguinPT::run();
 	return 0;
 }
-
-// Windows (/SUBSYSTEM:WINDOWS)
-/*int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdshow)
-{
-	penguinPT::run();
-    return 0;
-}*/

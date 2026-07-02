@@ -136,13 +136,21 @@ namespace penguinPT::loader {
 							if (useGPU) {
 								cudaTextureObject_t& a = bsdf_loader.BSDF_list.back().albedo_tex_CUDA;
 
+#ifndef WINDOWS_VERSION
 								if(texture_m_ptr->load_texture_GPU_float4("assets/models/" + tokens.at(1), a)) 
+#else
+								if (texture_m_ptr->load_texture_GPU_float4(file_util::removeFileName(path) + tokens.at(1), a))
+#endif
 									bsdf_loader.BSDF_list.back().use_albedo_tex = true;
 							}
 							else {
 								CPU_float4_texture& a = bsdf_loader.BSDF_list.back().albedo_tex_HOST;
 
+#ifndef WINDOWS_VERSION
 								if(texture_m_ptr->load_texture_CPU_float4("assets/models/" + tokens.at(1), a)) 
+#else
+								if (texture_m_ptr->load_texture_CPU_float4(file_util::removeFileName(path) + tokens.at(1), a))
+#endif
 									bsdf_loader.BSDF_list.back().use_albedo_tex = true;
 							}
 						}
@@ -152,13 +160,21 @@ namespace penguinPT::loader {
 							if (useGPU) {
 								cudaTextureObject_t& a = bsdf_loader.BSDF_list.back().roughness_tex_CUDA;
 
+#ifndef WINDOWS_VERSION
 								if(texture_m_ptr->load_texture_GPU_float("assets/models/" + tokens.at(1), a))
+#else 
+								if (texture_m_ptr->load_texture_GPU_float(file_util::removeFileName(path) + tokens.at(1), a))
+#endif
 									bsdf_loader.BSDF_list.back().use_roughness_tex = true;
 							}
 							else {
 								CPU_float_texture& a = bsdf_loader.BSDF_list.back().roughness_tex_HOST;
 
+#ifndef WINDOWS_VERSION
 								if(texture_m_ptr->load_texture_CPU_float("assets/models/" + tokens.at(1), a))
+#else
+								if (texture_m_ptr->load_texture_CPU_float(file_util::removeFileName(path) + tokens.at(1), a))
+#endif
 									bsdf_loader.BSDF_list.back().use_roughness_tex = true;
 							}
 						}
@@ -168,13 +184,21 @@ namespace penguinPT::loader {
 							if (useGPU) {
 								cudaTextureObject_t& a = bsdf_loader.BSDF_list.back().normal_tex_CUDA;
 
+#ifndef WINDOWS_VERSION
 								if(texture_m_ptr->load_texture_GPU_float4("assets/models/" + tokens.at(3), a))
+#else
+								if (texture_m_ptr->load_texture_GPU_float4(file_util::removeFileName(path) + tokens.at(3), a))
+#endif
 									bsdf_loader.BSDF_list.back().use_normal_tex = true;
 							}
 							else {
 								CPU_float4_texture& a = bsdf_loader.BSDF_list.back().normal_tex_HOST;
 
+#ifndef WINDOWS_VERSION
 								if(texture_m_ptr->load_texture_CPU_float4("assets/models/" + tokens.at(3), a))
+#else
+								if (texture_m_ptr->load_texture_CPU_float4(file_util::removeFileName(path) + tokens.at(3), a))
+#endif
 									bsdf_loader.BSDF_list.back().use_normal_tex = true;
 							}
 						}

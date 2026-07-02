@@ -1,3 +1,7 @@
+// Copyright 2026 Toiture1234
+// 
+// SPDX-License-Identifier : MIT
+
 #pragma once
 
 #include <SFML/Graphics.hpp>

@@ -21,7 +21,7 @@ namespace penguinPT::integrators {
 		//__device__ static bool integrate_spectral_device(renderer_services& rs, nanovdb::Ray<float>& ray, float& t, nanovdb::Vec3f& BSDF_value, float& scatter_pdf, Volume** volumes, int nb_vol, nanovdb::Vec3f& throughput, int channel, nanovdb::Vec3f& Le);
 		//__host__ static bool integrate_spectral_host(renderer_services& rs, nanovdb::Ray<float>& ray, float& t, nanovdb::Vec3f& BSDF_value, float& scatter_pdf, Volume** volumes, int nb_vol, nanovdb::Vec3f& throughput, int channel, nanovdb::Vec3f& Le);
 		__device__ static bool integrate_spectral_device(renderer_services& rs, nanovdb::Ray<float> ray, float& t_out, int nb_vol, Volume** volumes, int& volume_index, int channel);
-		__device__ static bool integrate_spectral_host(renderer_services& rs, nanovdb::Ray<float> ray, float& t_out, int nb_vol, Volume** volumes, int& volume_index, int channel);
+		__host__ static bool integrate_spectral_host(renderer_services& rs, nanovdb::Ray<float> ray, float& t_out, int nb_vol, Volume** volumes, int& volume_index, int channel);
 		
 	}; 
 	__device__ bool heterogeneous_volumes_integrator::integrate_spectral_device(renderer_services& rs, nanovdb::Ray<float> ray, float& t_out, int nb_vol, Volume** volumes, int& volume_index, int channel) {

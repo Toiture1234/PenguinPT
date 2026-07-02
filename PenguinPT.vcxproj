@@ -22,6 +22,7 @@
     <CudaCompile Include="renderer.cu" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ppt\core\application.h" />
     <ClInclude Include="ppt\loaders\BVH_loader.h" />
     <ClInclude Include="ppt\core\camera.h" />
     <ClInclude Include="ppt\core\Mesh.h" />
