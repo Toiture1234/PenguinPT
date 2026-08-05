@@ -17,6 +17,7 @@
 #define BUTTON_CHARACTER_SIZE 15U
 
 #define CHECKBOX_COOLDOWN 250 // in milliseconds
+#define BUTTON_COOLDOWN 250
 
 namespace penguinPT::GUI {
 	class ButtonTextual {
@@ -41,12 +42,14 @@ namespace penguinPT::GUI {
 		~ButtonTextual() {}
 
 		bool isPressed(sf::Vector2f mouse_pos);
-		void draw(sf::RenderWindow* target);
+		void draw(sf::RenderWindow* target, bool can_activate = true);
 
 		std::string getName() const { return m_name; };
 	private:
 		sf::Text m_text;
 		sf::RectangleShape m_body;
+
+		std::chrono::steady_clock::time_point m_last_press;
 
 		std::string m_name;
 
@@ -81,10 +84,13 @@ namespace penguinPT::GUI {
 		~ButtonTextured() {}
 
 		bool isPressed(sf::Vector2f mouse_pos);
-		void draw(sf::RenderWindow* target);
+		void draw(sf::RenderWindow* target, bool can_activate = true);
 
 		std::string getName() const { return m_name; };
 	private:
+
+		std::chrono::steady_clock::time_point m_last_press;
+
 		sf::RectangleShape m_body;
 		std::string m_name;
 	};
@@ -114,7 +120,7 @@ namespace penguinPT::GUI {
 		}
 		~CheckBox() {}
 
-		void draw(sf::RenderWindow* target);
+		void draw(sf::RenderWindow* target, bool can_activate = true);
 		void update(sf::Vector2f mouse_pos);
 	private:
 		sf::RectangleShape m_body;
@@ -142,7 +148,7 @@ namespace penguinPT::GUI {
 		}
 		~SelectorBox() {}
 
-		void draw(sf::RenderWindow* target);
+		void draw(sf::RenderWindow* target, bool can_activate = true);
 		void update(sf::Vector2f mouse_pos);
 
 		std::string getState();
@@ -164,15 +170,22 @@ namespace penguinPT::GUI {
 }
 
 bool penguinPT::GUI::ButtonTextual::isPressed(sf::Vector2f mouse_pos) {
-	return penguinPT::GUI::util::isMouseOnRect(mouse_pos, m_body) && sf::Mouse::isButtonPressed(sf::Mouse::Left);
+	std::chrono::steady_clock::time_point this_time = std::chrono::steady_clock::now();
+
+	auto elapsed = this_time - m_last_press;
+	if (penguinPT::GUI::util::isMouseOnRect(mouse_pos, m_body) && sf::Mouse::isButtonPressed(sf::Mouse::Left) && elapsed > std::chrono::milliseconds(BUTTON_COOLDOWN)) {
+		m_last_press = this_time;
+		return true;
+	}
+	return false;
 }
 void penguinPT::GUI::ButtonTextual::centerText() {
 	m_text.setOrigin(m_text.getGlobalBounds().getSize() * 0.5f);
 	m_text.setPosition({ m_body.getPosition().x + m_body.getSize().x * 0.5f, m_body.getPosition().y + m_body.getSize().y * 0.33f });
 }
-void penguinPT::GUI::ButtonTextual::draw(sf::RenderWindow* target) {
+void penguinPT::GUI::ButtonTextual::draw(sf::RenderWindow* target, bool can_activate) {
 	sf::Vector2f mouse_pos = target->mapPixelToCoords(sf::Mouse::getPosition(*target));
-	if (penguinPT::GUI::util::isMouseOnRect(mouse_pos, m_body)) {
+	if (penguinPT::GUI::util::isMouseOnRect(mouse_pos, m_body) && can_activate) {
 		sf::RectangleShape br(m_body.getSize());
 		br.setPosition(m_body.getPosition());
 		br.setFillColor(BUTTON_OUTLINE_COLOR);
@@ -184,11 +197,18 @@ void penguinPT::GUI::ButtonTextual::draw(sf::RenderWindow* target) {
 }
 
 bool penguinPT::GUI::ButtonTextured::isPressed(sf::Vector2f mouse_pos) {
-	return penguinPT::GUI::util::isMouseOnRect(mouse_pos, m_body) && sf::Mouse::isButtonPressed(sf::Mouse::Left);
+	std::chrono::steady_clock::time_point this_time = std::chrono::steady_clock::now();
+
+	auto elapsed = this_time - m_last_press;
+	if (penguinPT::GUI::util::isMouseOnRect(mouse_pos, m_body) && sf::Mouse::isButtonPressed(sf::Mouse::Left) && elapsed > std::chrono::milliseconds(BUTTON_COOLDOWN)) {
+		m_last_press = this_time;
+		return true;
+	}
+	return false;
 }
-void penguinPT::GUI::ButtonTextured::draw(sf::RenderWindow* target) {
+void penguinPT::GUI::ButtonTextured::draw(sf::RenderWindow* target, bool can_activate) {
 	sf::Vector2f mouse_pos = target->mapPixelToCoords(sf::Mouse::getPosition(*target));
-	if (penguinPT::GUI::util::isMouseOnRect(mouse_pos, m_body)) {
+	if (penguinPT::GUI::util::isMouseOnRect(mouse_pos, m_body) && can_activate) {
 		sf::RectangleShape br(m_body.getSize());
 		br.setPosition(m_body.getPosition());
 		br.setFillColor(BUTTON_OUTLINE_COLOR);
@@ -199,9 +219,9 @@ void penguinPT::GUI::ButtonTextured::draw(sf::RenderWindow* target) {
 	target->draw(m_body);
 }
 
-void penguinPT::GUI::CheckBox::draw(sf::RenderWindow* target) {
+void penguinPT::GUI::CheckBox::draw(sf::RenderWindow* target, bool can_activate) {
 	sf::Vector2f mouse_pos = target->mapPixelToCoords(sf::Mouse::getPosition(*target));
-	if (penguinPT::GUI::util::isMouseOnRect(mouse_pos, m_body)) {
+	if (penguinPT::GUI::util::isMouseOnRect(mouse_pos, m_body) && can_activate) {
 		m_body.setFillColor(BUTTON_OUTLINE_COLOR), m_body.setOutlineColor(BUTTON_TOGGLE_COLOR);
 	}
 	else {
@@ -227,9 +247,9 @@ void penguinPT::GUI::SelectorBox::centerText() {
 	m_text.setPosition({ m_body.getPosition().x + m_body.getSize().x * 0.5f, m_body.getPosition().y + m_body.getSize().y * 0.33f });
 }
 
-void penguinPT::GUI::SelectorBox::draw(sf::RenderWindow* target) {
+void penguinPT::GUI::SelectorBox::draw(sf::RenderWindow* target, bool can_activate) {
 	sf::Vector2f mouse_pos = target->mapPixelToCoords(sf::Mouse::getPosition(*target));
-	if (penguinPT::GUI::util::isMouseOnRect(mouse_pos, m_body)) {
+	if (penguinPT::GUI::util::isMouseOnRect(mouse_pos, m_body) && can_activate) {
 		m_body.setFillColor(BUTTON_OUTLINE_COLOR), m_body.setOutlineColor(BUTTON_TOGGLE_COLOR);
 	}
 	else {

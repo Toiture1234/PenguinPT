@@ -13,6 +13,7 @@
 #define BOUNCES_PT_VOL 1024
 #define SAFE_OFFSET 0.001f
 #define VOLUME_STACK_SIZE 16
+#define MEDIUM_STACK_SIZE 8
 #define DIRECT_LIGHT_STEPS 16
 
 #define TLAS_INTERSECTOR_STACK_SIZE 64
@@ -22,6 +23,7 @@
 #define BSDF_TROUGH_ID 0 // for volumes
 
 #define MODE_TRIANGLE 1
+#define BSDF_DATA_HOLDER 0
 
 #define ANTIALIAS_SIZE 0.0005f
 

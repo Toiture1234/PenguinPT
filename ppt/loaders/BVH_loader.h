@@ -136,7 +136,9 @@ bool penguinPT::loader::BVHLoader::loadObj(std::string file_path, std::vector<Tr
 
 						tr.BSDF_index = BASE_BSDF;
 #endif
+#if BSDF_DATA_HOLDER == 0
 						tr_dat.BSDF_index = BASE_BSDF;
+#endif
 
 						dst->push_back(tr);
 						dst_data->push_back(tr_dat);
@@ -162,7 +164,9 @@ bool penguinPT::loader::BVHLoader::loadObj(std::string file_path, std::vector<Tr
 
 						tr.BSDF_index = BASE_BSDF;
 #endif
+#if BSDF_DATA_HOLDER == 0
 						tr_dat.BSDF_index = BASE_BSDF;
+#endif
 
 						dst->push_back(tr);
 						dst_data->push_back(tr_dat);
@@ -183,7 +187,9 @@ bool penguinPT::loader::BVHLoader::loadObj(std::string file_path, std::vector<Tr
 						tr_dat.uvB = uv_list.at(uvB);
 						tr_dat.uvC = uv_list.at(uvC);
 
+#if BSDF_DATA_HOLDER == 0
 						tr_dat.BSDF_index = BASE_BSDF;
+#endif
 #if MODE_TRIANGLE == 0
 						tr.BSDF_index = BASE_BSDF;
 #endif
@@ -198,8 +204,9 @@ bool penguinPT::loader::BVHLoader::loadObj(std::string file_path, std::vector<Tr
 
 						Triangle tr(vertex_list.at(verticeA), vertex_list.at(verticeB), vertex_list.at(verticeC));
 						Triangle_data tr_dat;
-
+#if BSDF_DATA_HOLDER == 0
 						tr_dat.BSDF_index = BASE_BSDF;
+#endif
 #if MODE_TRIANGLE == 0
 						tr.BSDF_index = BASE_BSDF;
 #endif

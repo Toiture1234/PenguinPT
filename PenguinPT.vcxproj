@@ -147,7 +147,7 @@
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(CudaToolkitIncludeDir);C:\openvdb-12.1.0\openvdb\nanovdb;$(SolutionDir)ext/SFML/include;$(SolutionDir);$(SolutionDir)ext/glew-2.3.1/include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <SubSystem>Windows</SubSystem>
+      <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(SolutionDir)ext\SFML\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>%(AdditionalDependencies);cudart.lib;cudadevrt.lib;winmm.lib;gdi32.lib;opengl32.lib;freetype.lib;sfml-system-s-d.lib;sfml-window-s-d.lib;sfml-graphics-s-d.lib;Comdlg32.lib</AdditionalDependencies>
@@ -169,7 +169,7 @@
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(CudaToolkitIncludeDir);C:\openvdb-12.1.0\openvdb\nanovdb;$(SolutionDir)ext/SFML/include;$(SolutionDir);$(SolutionDir)ext/glew-2.3.1/include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <SubSystem>Windows</SubSystem>
+      <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(SolutionDir)ext\SFML\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>%(AdditionalDependencies);cudart.lib;cudadevrt.lib;winmm.lib;gdi32.lib;opengl32.lib;freetype.lib;sfml-system-s.lib;sfml-window-s.lib;sfml-graphics-s.lib;Comdlg32.lib</AdditionalDependencies>

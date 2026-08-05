@@ -1,0 +1,89 @@
+# Blender 4.3.2 MTL File: 'None'
+# www.blender.org
+
+newmtl Material
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.600000
+d 1.000000
+illum 3
+Pr 0.100000
+Pm 0.200000
+Ps 0.000000
+Pc 0.000000
+Pcr 0.030000
+aniso 0.000000
+anisor 0.000000
+
+newmtl jacaranda_tree_branches.001
+Ks 0.300000 0.300000 0.300000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+Pm 0.000000
+Ps 0.000000
+Pc 0.000000
+Pcr 0.030000
+aniso 0.000000
+anisor 0.000000
+map_Kd jacaranda_tree_2k.blend/textures/jacaranda_tree_branches_diff_2k.png
+map_Pr jacaranda_tree_2k.blend/textures/jacaranda_tree_branches_rough_2k.png
+map_Bump -bm 1.000000 jacaranda_tree_2k.blend/textures/jacaranda_tree_branches_nor_gl_2k.png
+
+newmtl jacaranda_tree_leaves.001
+Kd 0.464639 0.800000 0.187849
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+Pr 0.400000
+Pm 0.000000
+map_Kd jacaranda_tree_2k.blend/textures/jacaranda_tree_leaves_diff_2k.png
+map_Pr jacaranda_tree_2k.blend/textures/jacaranda_tree_leaves_rough_2k.png
+map_Bump -bm 1.000000 jacaranda_tree_2k.blend/textures/jacaranda_tree_leaves_nor_gl_2k.png
+
+newmtl jacaranda_tree_trunk.001
+Kd 0.214035 0.179076 0.117358
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+Pr 0.528755
+Pm 0.000000
+map_Kd jacaranda_tree_2k.blend/textures/jacaranda_tree_trunk_diff_2k.png
+map_Pr jacaranda_tree_2k.blend/textures/jacaranda_tree_trunk_rough_2k.png
+map_Bump -bm 1.000000 jacaranda_tree_2k.blend/textures/jacaranda_tree_trunk_nor_gl_2k.png
+
+newmtl stone
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+Pm 0.000000
+Ps 0.000000
+Pc 0.000000
+Pcr 0.030000
+aniso 0.000000
+anisor 0.000000
+map_Kd concrete_floor_worn_001_4k/textures/concrete_floor_worn_001_diff_4k.png
+map_Pr concrete_floor_worn_001_4k/textures/concrete_floor_worn_001_rough_4k.png
+
+newmtl wood
+Kd 0.095646 0.047170 0.019639
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+Pr 0.200000
+Pm 0.000000
+Ps 0.000000
+Pc 0.000000
+Pcr 0.030000
+aniso 0.000000
+anisor 0.000000

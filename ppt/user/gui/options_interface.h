@@ -29,13 +29,15 @@ namespace penguinPT {
 
 		void oiUpdate(
 			sf::RenderWindow* target,
+			sf::RenderWindow* window_render,
 			renderer_services* rs, 
 			sf::Texture* display_texture,
 			loader::obj_loader* loader_obj,
 			loader::nanovdb_loader* loader_nvdb,
 			loader::envmap_loader* loader_envmap,
 			loader::SDPT_Loader* loader_sdpt,
-			BVH* geom_ptr);
+			BVH* geom_ptr,
+			texture_manager* manager_textures);
 		void oiDraw(sf::RenderWindow* target);
 
 		// this function is not static because it needs the font stored in OptionsInterface
@@ -48,7 +50,8 @@ namespace penguinPT {
 			loader::nanovdb_loader* loader_nvdb, 
 			loader::envmap_loader* loader_envmap, 
 			loader::SDPT_Loader* loader_sdpt,
-			BVH* geom_ptr);
+			BVH* geom_ptr,
+			texture_manager* manager_textures);
 
 		sf::Texture getTextureFromIndex(unsigned int index);
 
@@ -88,6 +91,7 @@ namespace penguinPT {
 		m_table m_current_table = m_table::camera;
 
 		// specific to tables
+		void* m_toggled_slider_ptr = nullptr;
 		std::vector<std::vector<GUI::sliderBase<float>>> m_float_slider_list_tables;
 		std::vector<std::vector<GUI::ButtonTextual>> m_button_textual_list_tables;
 		std::vector<std::vector<GUI::ButtonTextured>> m_button_textured_list_tables;
@@ -168,9 +172,10 @@ void penguinPT::OptionsInterface::oiOnInit(renderer_services* rs) {
 	m_rectangles.back().setOutlineColor({ 61,61,61 });
 
 	m_button_textured_list_global.push_back(GUI::ButtonTextured("render:launch", { 64,0 }, { 32,32 }, &m_symbol_sheet, { 0,0, 32, 32 }));
-	m_button_textured_list_global.push_back(GUI::ButtonTextured("render:stop", { 64,32 }, { 32,32 }, &m_symbol_sheet, { 32,0, 32, 32 }));
+	m_button_textured_list_global.push_back(GUI::ButtonTextured("render:pause", { 64,32 }, { 32,32 }, &m_symbol_sheet, { 96,32, 32, 32 }));
+	m_button_textured_list_global.push_back(GUI::ButtonTextured("render:stop", { 64,64 }, { 32,32 }, &m_symbol_sheet, { 32,0, 32, 32 }));
 	//m_button_textured_list_global.push_back(GUI::ButtonTextured("parameters:open", { 64,64 }, { 32,32 }, &m_symbol_sheet, { 96,0, 32, 32 }));
-	m_button_textured_list_global.push_back(GUI::ButtonTextured("screenshot:take", { 64,64 }, { 32,32 }, &m_symbol_sheet, { 64,32, 32, 32 }));
+	m_button_textured_list_global.push_back(GUI::ButtonTextured("screenshot:take", { 64,96 }, { 32,32 }, &m_symbol_sheet, { 64,32, 32, 32 }));
 	m_button_textured_list_global.push_back(GUI::ButtonTextured("app:exit", { 64,480 }, { 32,32 }, &m_symbol_sheet, { 64,0, 32, 32 }));
 
 	m_button_textual_list_global.push_back(GUI::ButtonTextual("table:camera", getSentence("Camera"), { 96, 0 }, { 208,24 }, &m_font));
@@ -218,11 +223,10 @@ void penguinPT::OptionsInterface::oiOnInit(renderer_services* rs) {
 	m_checkbox_list_tables.at(m_table::camera).push_back(GUI::CheckBox("camera:lock", { 304, 128 }, { 24, 24 }, &m_symbol_sheet, { 36,36,24,24 }, &(rs->lock_camera)));
 	m_textbox_list_tables.at(m_table::camera).push_back(GUI::TextBox({ 96, 160 }, { 208, 24 }, getSentence("Focus needed to move"), &m_font));
 	m_checkbox_list_tables.at(m_table::camera).push_back(GUI::CheckBox("camera:focusneed", { 304, 160 }, { 24, 24 }, &m_symbol_sheet, { 36,36,24,24 }, &(rs->focus_needed)));
-	m_float_slider_list_tables.at(m_table::camera).push_back(GUI::sliderBase<float>("camera:speed", getSentence("Camera moving speed"), &m_font, &rs->mainCam.speed, { 308, 64 }, { 200, 24 }, 1.f, 5000.f));
+	m_float_slider_list_tables.at(m_table::camera).push_back(GUI::sliderBase<float>("camera:speed", getSentence("Camera moving speed"), &m_font, &rs->mainCam.speed, { 308, 64 }, { 200, 24 }, 1.f, 2000.f));
 	m_textbox_list_tables.at(m_table::camera).push_back(GUI::TextBox({ 96, 192 }, { 208, 24 }, getSentence("Preview mode"), &m_font));
 	m_checkbox_list_tables.at(m_table::camera).push_back(GUI::CheckBox("camera:previewmode", { 304, 192 }, { 24, 24 }, &m_symbol_sheet, { 36,36,24,24 }, &(rs->first_frame_mode)));
-
-
+	
 	// parameters
 	m_textbox_list_tables.at(m_table::options).push_back(GUI::TextBox({ 96, 64 }, { 208, 24 }, getSentence("Language"), &m_font));
 	m_textbox_list_tables.at(m_table::options).push_back(GUI::TextBox({ 96, 96 }, { 208, 24 }, getSentence("Viewport resolution"), &m_font));
@@ -278,119 +282,143 @@ void penguinPT::OptionsInterface::oiOnInit(renderer_services* rs) {
 void penguinPT::OptionsInterface::oiClear() {
 }
 
-void penguinPT::OptionsInterface::oiUpdate(sf::RenderWindow* target, renderer_services* rs, sf::Texture* display_texture, loader::obj_loader* loader_obj, loader::nanovdb_loader* loader_nvdb, loader::envmap_loader* loader_envmap, loader::SDPT_Loader* loader_sdpt, BVH* geom_ptr) {
+void penguinPT::OptionsInterface::oiUpdate(sf::RenderWindow* target, sf::RenderWindow* window_render, renderer_services* rs, sf::Texture* display_texture, loader::obj_loader* loader_obj, loader::nanovdb_loader* loader_nvdb, loader::envmap_loader* loader_envmap, loader::SDPT_Loader* loader_sdpt, BVH* geom_ptr, texture_manager* manager_textures) {
 	sf::Vector2f mouse_position = target->mapPixelToCoords(sf::Mouse::getPosition(*target));
 
-	if (getTexturedButtonGlobal("render:launch").isPressed(mouse_position)) {
-		rs->is_rendering = true;
-		rs->first_frame_mode = false;
-		rs->frame_index = 0;
-	}
-	if (getTexturedButtonGlobal("render:stop").isPressed(mouse_position)) {
-		rs->is_rendering = false;
-		rs->frame_index = 0;
-	}
-	if (getTexturedButtonGlobal("app:exit").isPressed(mouse_position)) {
-		target->close();
-	}
-	if (getTexturedButtonGlobal("screenshot:take").isPressed(mouse_position)) {
-		save_screenshot(*display_texture);
-	}
+	if (m_toggled_slider_ptr == nullptr) {
+		if (getTexturedButtonGlobal("render:launch").isPressed(mouse_position)) {
+			rs->first_frame_mode = false;
+			if (!rs->is_paused && !rs->is_rendering) rs->frame_index = 0;
+			rs->is_paused = false;
+			rs->is_rendering = true;
+		}
+		if (getTexturedButtonGlobal("render:pause").isPressed(mouse_position) && !rs->first_frame_mode) {
+			rs->is_paused = true;
+		}
 
-	if (getTextualButtonGlobal("table:camera").isPressed(mouse_position)) {
-		m_current_table = penguinPT::OptionsInterface::m_table::camera;
+		if (getTexturedButtonGlobal("render:stop").isPressed(mouse_position)) {
+			rs->is_rendering = false;
+			rs->frame_index = 0;
+		}
+		if (getTexturedButtonGlobal("app:exit").isPressed(mouse_position)) {
+			target->close();
+		}
+		if (getTexturedButtonGlobal("screenshot:take").isPressed(mouse_position)) {
+			save_screenshot(*display_texture);
+		}
+
+		if (getTextualButtonGlobal("table:camera").isPressed(mouse_position)) {
+			m_current_table = penguinPT::OptionsInterface::m_table::camera;
+		}
+		if (getTextualButtonGlobal("table:options").isPressed(mouse_position)) {
+			m_current_table = penguinPT::OptionsInterface::m_table::options;
+		}
+		if (getTextualButtonGlobal("table:scene").isPressed(mouse_position)) {
+			m_current_table = penguinPT::OptionsInterface::m_table::scene;
+		}
+		if (getTextualButtonGlobal("table:postprocess").isPressed(mouse_position)) {
+			m_current_table = penguinPT::OptionsInterface::m_table::post_processing;
+		}
 	}
-	if (getTextualButtonGlobal("table:options").isPressed(mouse_position)) {
-		m_current_table = penguinPT::OptionsInterface::m_table::options;
-	}
-	if (getTextualButtonGlobal("table:scene").isPressed(mouse_position)) {
-		m_current_table = penguinPT::OptionsInterface::m_table::scene;
-	}
-	if (getTextualButtonGlobal("table:postprocess").isPressed(mouse_position)) {
-		m_current_table = penguinPT::OptionsInterface::m_table::post_processing;
-	}
+	// title shit
+	if (rs->first_frame_mode || !rs->is_rendering) target->setTitle("PenguinPT -- V1.0");
+	else if(rs->is_paused) target->setTitle("PenguinPT -- V1.0 -- Paused");
+	else target->setTitle("PenguinPT -- V1.0 -- Rendering");
 	
-
-	for (GUI::CheckBox& b : m_checkbox_list_global) b.update(mouse_position);
+	if (m_toggled_slider_ptr == nullptr) for (GUI::CheckBox& b : m_checkbox_list_global) b.update(mouse_position);
 
 	switch (m_current_table)
 	{
 	case penguinPT::OptionsInterface::m_table::camera:
-		for (GUI::sliderBase<float>& s : m_float_slider_list_tables.at(m_table::camera)) s.update(mouse_position);
-		for (GUI::CheckBox& c : m_checkbox_list_tables.at(penguinPT::OptionsInterface::m_table::camera)) c.update(mouse_position);
-		for (GUI::SelectorBox& s : m_selectorbox_list_tables.at(m_table::camera)) s.update(mouse_position);
+		for (GUI::sliderBase<float>& s : m_float_slider_list_tables.at(m_table::camera)) {
+			s.update(mouse_position, &m_toggled_slider_ptr);
+		}
+		if (m_toggled_slider_ptr == nullptr) {
+			for (GUI::CheckBox& c : m_checkbox_list_tables.at(penguinPT::OptionsInterface::m_table::camera)) c.update(mouse_position);
+			for (GUI::SelectorBox& s : m_selectorbox_list_tables.at(m_table::camera)) s.update(mouse_position);
+		}
 		break;
 	case penguinPT::OptionsInterface::m_table::scene:
-		for (GUI::sliderBase<float>& s : m_float_slider_list_tables.at(m_table::scene)) s.update(mouse_position);
-		for (GUI::CheckBox& c : m_checkbox_list_tables.at(penguinPT::OptionsInterface::m_table::scene)) c.update(mouse_position);
-		for (GUI::SelectorBox& s : m_selectorbox_list_tables.at(m_table::scene)) s.update(mouse_position);
+		for (GUI::sliderBase<float>& s : m_float_slider_list_tables.at(m_table::scene)) s.update(mouse_position, &m_toggled_slider_ptr);
+		if (m_toggled_slider_ptr == nullptr) {
+			for (GUI::CheckBox& c : m_checkbox_list_tables.at(penguinPT::OptionsInterface::m_table::scene)) c.update(mouse_position);
+			for (GUI::SelectorBox& s : m_selectorbox_list_tables.at(m_table::scene)) s.update(mouse_position);
 
-		if (getTextualButtonTable("scene:load", m_table::scene).isPressed(mouse_position)) 
-			sceneLoadProcedure(rs, loader_obj, loader_nvdb, loader_envmap, loader_sdpt, geom_ptr);
+
+			if (getTextualButtonTable("scene:load", m_table::scene).isPressed(mouse_position)) {
+				sceneLoadProcedure(rs, loader_obj, loader_nvdb, loader_envmap, loader_sdpt, geom_ptr, manager_textures);
+
+				if (!window_render->isOpen()) window_render->create(sf::VideoMode(WINDOW_RES_X, WINDOW_RES_Y), "PenguinPT -- Render");
+			}
+		}
 
 		break;
 	case penguinPT::OptionsInterface::m_table::options:
-		for (GUI::sliderBase<float>& s : m_float_slider_list_tables.at(m_table::options)) s.update(mouse_position);
-		for (GUI::CheckBox& c : m_checkbox_list_tables.at(penguinPT::OptionsInterface::m_table::options)) c.update(mouse_position);
-		for (GUI::SelectorBox& s : m_selectorbox_list_tables.at(m_table::options)) s.update(mouse_position);
+		for (GUI::sliderBase<float>& s : m_float_slider_list_tables.at(m_table::options)) s.update(mouse_position, &m_toggled_slider_ptr);
+		if (m_toggled_slider_ptr == nullptr) {
+			for (GUI::CheckBox& c : m_checkbox_list_tables.at(penguinPT::OptionsInterface::m_table::options)) c.update(mouse_position);
+			for (GUI::SelectorBox& s : m_selectorbox_list_tables.at(m_table::options)) s.update(mouse_position);
 
-		if (getTextualButtonTable("options:save", m_table::options).isPressed(mouse_position)) {
-			saveOptions();
+			if (getTextualButtonTable("options:save", m_table::options).isPressed(mouse_position)) {
+				saveOptions();
+			}
 		}
 		break;
 	case penguinPT::OptionsInterface::m_table::post_processing:
-		for (GUI::sliderBase<float>& s : m_float_slider_list_tables.at(m_table::post_processing)) s.update(mouse_position);
-		for (GUI::CheckBox& c : m_checkbox_list_tables.at(penguinPT::OptionsInterface::m_table::post_processing)) c.update(mouse_position);
-		for (GUI::SelectorBox& s : m_selectorbox_list_tables.at(m_table::post_processing)) s.update(mouse_position);
+		for (GUI::sliderBase<float>& s : m_float_slider_list_tables.at(m_table::post_processing)) s.update(mouse_position, &m_toggled_slider_ptr);
+		if (m_toggled_slider_ptr == nullptr) {
+			for (GUI::CheckBox& c : m_checkbox_list_tables.at(penguinPT::OptionsInterface::m_table::post_processing)) c.update(mouse_position);
+			for (GUI::SelectorBox& s : m_selectorbox_list_tables.at(m_table::post_processing)) s.update(mouse_position);
+		}
 		break;
 	default:
 		break;
 	}
 }
 void penguinPT::OptionsInterface::oiDraw(sf::RenderWindow* target) {
+	bool can_activate = m_toggled_slider_ptr == nullptr;
 	sf::Vector2f mouse_position = target->mapPixelToCoords(sf::Mouse::getPosition(*target));
 
 	for (sf::RectangleShape& r : m_rectangles) target->draw(r);
 
-	for (GUI::ButtonTextured& b : m_button_textured_list_global) b.draw(target);
-	for (GUI::ButtonTextual& b : m_button_textual_list_global) b.draw(target);
+	for (GUI::ButtonTextured& b : m_button_textured_list_global) b.draw(target, can_activate);
+	for (GUI::ButtonTextual& b : m_button_textual_list_global) b.draw(target, can_activate);
 
-	for (GUI::CheckBox& b : m_checkbox_list_global) b.draw(target);
+	for (GUI::CheckBox& b : m_checkbox_list_global) b.draw(target, can_activate);
 
-	
 	switch (m_current_table)
 	{
 	case penguinPT::OptionsInterface::m_table::camera:
-		for (GUI::ButtonTextured& b : m_button_textured_list_tables.at(penguinPT::OptionsInterface::m_table::camera)) b.draw(target);
-		for (GUI::ButtonTextual& b : m_button_textual_list_tables.at(penguinPT::OptionsInterface::m_table::camera)) b.draw(target);
+		for (GUI::ButtonTextured& b : m_button_textured_list_tables.at(penguinPT::OptionsInterface::m_table::camera)) b.draw(target, can_activate);
+		for (GUI::ButtonTextual& b : m_button_textual_list_tables.at(penguinPT::OptionsInterface::m_table::camera)) b.draw(target, can_activate);
 		for (GUI::sliderBase<float>& s : m_float_slider_list_tables.at(m_table::camera)) s.draw(target, mouse_position);
 		for (GUI::TextBox& t : m_textbox_list_tables.at(penguinPT::OptionsInterface::m_table::camera)) t.draw(target);
-		for (GUI::CheckBox& c : m_checkbox_list_tables.at(penguinPT::OptionsInterface::m_table::camera)) c.draw(target);
-		for (GUI::SelectorBox& s : m_selectorbox_list_tables.at(m_table::camera)) s.draw(target);
+		for (GUI::CheckBox& c : m_checkbox_list_tables.at(penguinPT::OptionsInterface::m_table::camera)) c.draw(target, can_activate);
+		for (GUI::SelectorBox& s : m_selectorbox_list_tables.at(m_table::camera)) s.draw(target, can_activate);
 		break;
 	case penguinPT::OptionsInterface::m_table::scene:
-		for (GUI::ButtonTextured& b : m_button_textured_list_tables.at(penguinPT::OptionsInterface::m_table::scene)) b.draw(target);
-		for (GUI::ButtonTextual& b : m_button_textual_list_tables.at(penguinPT::OptionsInterface::m_table::scene)) b.draw(target);
+		for (GUI::ButtonTextured& b : m_button_textured_list_tables.at(penguinPT::OptionsInterface::m_table::scene)) b.draw(target, can_activate);
+		for (GUI::ButtonTextual& b : m_button_textual_list_tables.at(penguinPT::OptionsInterface::m_table::scene)) b.draw(target, can_activate);
 		for (GUI::sliderBase<float>& s : m_float_slider_list_tables.at(m_table::scene)) s.draw(target, mouse_position);
 		for (GUI::TextBox& t : m_textbox_list_tables.at(penguinPT::OptionsInterface::m_table::scene)) t.draw(target);
-		for (GUI::CheckBox& c : m_checkbox_list_tables.at(penguinPT::OptionsInterface::m_table::scene)) c.draw(target);
-		for (GUI::SelectorBox& s : m_selectorbox_list_tables.at(m_table::scene)) s.draw(target);
+		for (GUI::CheckBox& c : m_checkbox_list_tables.at(penguinPT::OptionsInterface::m_table::scene)) c.draw(target, can_activate);
+		for (GUI::SelectorBox& s : m_selectorbox_list_tables.at(m_table::scene)) s.draw(target, can_activate);
 		break;
 	case penguinPT::OptionsInterface::m_table::options:
-		for (GUI::ButtonTextured& b : m_button_textured_list_tables.at(penguinPT::OptionsInterface::m_table::options)) b.draw(target);
-		for (GUI::ButtonTextual& b : m_button_textual_list_tables.at(penguinPT::OptionsInterface::m_table::options)) b.draw(target);
+		for (GUI::ButtonTextured& b : m_button_textured_list_tables.at(penguinPT::OptionsInterface::m_table::options)) b.draw(target, can_activate);
+		for (GUI::ButtonTextual& b : m_button_textual_list_tables.at(penguinPT::OptionsInterface::m_table::options)) b.draw(target, can_activate);
 		for (GUI::sliderBase<float>& s : m_float_slider_list_tables.at(m_table::options)) s.draw(target, mouse_position);
 		for (GUI::TextBox& t : m_textbox_list_tables.at(penguinPT::OptionsInterface::m_table::options)) t.draw(target);
-		for (GUI::CheckBox& c : m_checkbox_list_tables.at(penguinPT::OptionsInterface::m_table::options)) c.draw(target);
-		for (GUI::SelectorBox& s : m_selectorbox_list_tables.at(m_table::options)) s.draw(target);
+		for (GUI::CheckBox& c : m_checkbox_list_tables.at(penguinPT::OptionsInterface::m_table::options)) c.draw(target, can_activate);
+		for (GUI::SelectorBox& s : m_selectorbox_list_tables.at(m_table::options)) s.draw(target, can_activate);
 		break;
 	case penguinPT::OptionsInterface::m_table::post_processing:
-		for (GUI::ButtonTextured& b : m_button_textured_list_tables.at(penguinPT::OptionsInterface::m_table::post_processing)) b.draw(target);
-		for (GUI::ButtonTextual& b : m_button_textual_list_tables.at(penguinPT::OptionsInterface::m_table::post_processing)) b.draw(target);
+		for (GUI::ButtonTextured& b : m_button_textured_list_tables.at(penguinPT::OptionsInterface::m_table::post_processing)) b.draw(target, can_activate);
+		for (GUI::ButtonTextual& b : m_button_textual_list_tables.at(penguinPT::OptionsInterface::m_table::post_processing)) b.draw(target, can_activate);
 		for (GUI::sliderBase<float>& s : m_float_slider_list_tables.at(m_table::post_processing)) s.draw(target, mouse_position);
 		for (GUI::TextBox& t : m_textbox_list_tables.at(penguinPT::OptionsInterface::m_table::post_processing)) t.draw(target);
-		for (GUI::CheckBox& c : m_checkbox_list_tables.at(penguinPT::OptionsInterface::m_table::post_processing)) c.draw(target);
-		for (GUI::SelectorBox& s : m_selectorbox_list_tables.at(m_table::post_processing)) s.draw(target);
+		for (GUI::CheckBox& c : m_checkbox_list_tables.at(penguinPT::OptionsInterface::m_table::post_processing)) c.draw(target, can_activate);
+		for (GUI::SelectorBox& s : m_selectorbox_list_tables.at(m_table::post_processing)) s.draw(target, can_activate);
 		break;
 	default:
 		break;
@@ -489,7 +517,8 @@ void penguinPT::OptionsInterface::sceneLoadProcedure(
 	loader::nanovdb_loader* loader_nvdb,
 	loader::envmap_loader* loader_envmap,
 	loader::SDPT_Loader* loader_sdpt,
-	BVH* geom_ptr) 
+	BVH* geom_ptr,
+	texture_manager* manager_textures)
 {
 	if (rs->CUDA_CAPABLE_GPU) cudaFree(geom_ptr);
 	else free(geom_ptr);
@@ -501,6 +530,8 @@ void penguinPT::OptionsInterface::sceneLoadProcedure(
 	loader_envmap->clean();
 	loader_nvdb->clean();
 	loader_obj->clean();
+
+	manager_textures->clean();
 
 	loader_sdpt->forceLoad(loader_obj, loader_nvdb, loader_envmap);
 

@@ -73,7 +73,7 @@ namespace penguinPT::GUI {
 		}
 		~sliderBase() {}
 
-		void update(sf::Vector2f mouse_pos);
+		void update(sf::Vector2f mouse_pos, void** toggled_slider_ptr);
 		void draw(sf::RenderTexture* target, sf::Vector2f mouse_pos);
 		void draw(sf::RenderWindow* target, sf::Vector2f mouse_pos);
 		
@@ -116,29 +116,36 @@ template<typename T> float penguinPT::GUI::sliderBase<T>::getInterpolation() {
 	return (*m_ref - m_min) / (m_max - m_min);
 }
 
-template<typename T> void penguinPT::GUI::sliderBase<T>::update(sf::Vector2f mouse_pos) {
+template<typename T> void penguinPT::GUI::sliderBase<T>::update(sf::Vector2f mouse_pos, void** toggled_slider_ptr) 
+{
+	if (*toggled_slider_ptr != this && *toggled_slider_ptr != nullptr) return;
+
 	float mouse_interpolation = (mouse_pos.x - (m_rect.getPosition().x + SLIDER_PERCENTAGE * 0.5f * m_rect.getSize().x)) / (m_rect.getSize().x * (1.f - SLIDER_PERCENTAGE));
 	mouse_interpolation = CLAMP(mouse_interpolation, 0.f, 1.f);
-	if (util::isMouseOnRect(mouse_pos, m_rect))
-	{
-		if (util::isMouseOnRect(mouse_pos + sf::Vector2f(m_slider_rect.getSize().x * 0.5f, 0.f), m_slider_rect)) {
-			m_slider_rect.setFillColor(SLIDER_TOGGLE_COLOR);
-			if (sf::Mouse::isButtonPressed(sf::Mouse::Left)) m_dragging = true;
+
+	bool left_pressed = sf::Mouse::isButtonPressed(sf::Mouse::Left);
+	if (util::isMouseOnRect(mouse_pos + sf::Vector2f(m_slider_rect.getSize().x * 0.5f, 0.f), m_slider_rect)) {
+		m_slider_rect.setFillColor(SLIDER_TOGGLE_COLOR);
+		if (left_pressed) {
+			m_dragging = true;
+			*toggled_slider_ptr = this;
 		}
-		else {
-			m_slider_rect.setFillColor(SLIDER_OUTLINE_COLOR);
-			if (sf::Mouse::isButtonPressed(sf::Mouse::Left)) *m_ref = m_min + (m_max - m_min) * mouse_interpolation;
-		}
-	} else if(!m_dragging){
+	}
+	else if (util::isMouseOnRect(mouse_pos, m_rect)) {
+		m_slider_rect.setFillColor(SLIDER_OUTLINE_COLOR);
+		if (left_pressed) *m_ref = m_min + (m_max - m_min) * mouse_interpolation;
+	}
+	else if (!m_dragging) {
 		m_slider_rect.setFillColor(SLIDER_OUTLINE_COLOR);
 	}
-	
+
 	if (m_dragging) {
 		*m_ref = m_min + (m_max - m_min) * mouse_interpolation;
-
-		if (!sf::Mouse::isButtonPressed(sf::Mouse::Left)) m_dragging = false;
+		if (!left_pressed) {
+			m_dragging = false;
+			*toggled_slider_ptr = nullptr;
+		}
 	}
-	
 	*m_ref = CLAMP(*m_ref, m_min, m_max);
-	m_slider_rect.setPosition({ m_rect.getPosition().x + m_rect.getSize().x * (1.f - SLIDER_PERCENTAGE) * getInterpolation() + m_rect.getSize().x * SLIDER_PERCENTAGE * 0.5f, m_rect.getPosition().y});
+	m_slider_rect.setPosition({ m_rect.getPosition().x + m_rect.getSize().x * (1.f - SLIDER_PERCENTAGE) * getInterpolation() + m_rect.getSize().x * SLIDER_PERCENTAGE * 0.5f, m_rect.getPosition().y });
 }

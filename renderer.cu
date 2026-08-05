@@ -20,6 +20,8 @@
 #include <ppt/util/Matrix.h>
 #include <ppt/core/mesh_manager.h>
 
+#include <ppt/core/preview.h>
+
 #include <ppt/loaders/BVH_loader.h>
 #include <ppt/user/gui/options_interface.h>
 
@@ -53,22 +55,10 @@ namespace penguinPT {
 
     // kernel
     __device__ nanovdb::Vec3f getColor(renderer_services& rs, nanovdb::math::Ray<float> ray, float2 uv) {
-        hit_info info;
-        info.t = 1e10f;
-        
         if(rs.is_rendering || rs.first_frame_mode)
             return volume_pathtrace_device_spectral(rs, ray);
-        //if (rs.scene.intersectScene_full(ray, info)) {
-        if (rs.scene.intersectScene(ray, info)) {
-            principled_BSDF& surface_bsdf = rs.scene.bsdf_list[info.BSDF_index];
-
-            // normal modification
-            nanovdb::Vec3f T, B;
-            util::Onb(info.normal, T, B);
-            return util::ToWorld(T, B, info.normal, surface_bsdf.getNormal_textured_CUDA(info.uv) * 2.f - nanovdb::Vec3f(1.f));
-        }
-        float pdf_e;
-        return (rs.scene.environnement_map.eval_envmap(ray.dir(), pdf_e));
+        
+        return previewRenderCUDA(ray, rs);
     }
     __host__ nanovdb::Vec3f getColor_host(renderer_services& rs, nanovdb::math::Ray<float> ray, float2 uv) {
         hit_info info;
@@ -118,7 +108,8 @@ namespace penguinPT {
 
         nanovdb::math::Ray<float> first_ray = { camera_origin, rayDirection };
 
-        nanovdb::Vec3f color = getColor(rs, first_ray, make_float2(uvX, uvY));
+        nanovdb::Vec3f color = nanovdb::Vec3f(0.f);
+        if(!rs.is_paused) color = getColor(rs, first_ray, make_float2(uvX, uvY));
 
         if (isnan(color[0]) || isnan(color[1]) || isnan(color[2])) return;
 
@@ -198,8 +189,9 @@ namespace penguinPT {
 
                     nanovdb::math::Ray<float> first_ray = { camera_origin, rayDirection };
 
-                    nanovdb::Vec3f color = getColor_host(rs, first_ray, make_float2(uvX, uvY));
-
+                    nanovdb::Vec3f color = nanovdb::Vec3f(0.f);
+                    if (!rs.is_paused) color = getColor_host(rs, first_ray, make_float2(uvX, uvY));
+                   
                     if (rs.frame_index == 0)
                         host_accum_buffer[idx] = color;
                     else host_accum_buffer[idx] += color;
@@ -293,8 +285,8 @@ namespace penguinPT {
             }
 
             if (window_render.hasFocus() || !penguinPTApp.rs.focus_needed) {
-                if (!penguinPTApp.rs.lock_camera) penguinPTApp.rs.mainCam.move(&window_render, penguinPTApp.rs.delta_time, &penguinPTApp.rs.frame_index);
-                if (sf::Keyboard::isKeyPressed(sf::Keyboard::M)) {
+                if (!penguinPTApp.rs.lock_camera && !penguinPTApp.rs.is_paused) penguinPTApp.rs.mainCam.move(&window_render, penguinPTApp.rs.delta_time, &penguinPTApp.rs.frame_index);
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::M) && window_render.hasFocus()) {
                     save_screenshot(displayTex);
                 }
                 if (sf::Keyboard::isKeyPressed(sf::Keyboard::Multiply)) {
@@ -308,15 +300,22 @@ namespace penguinPT {
             }
             if (!penguinPTApp.rs.focus_needed && window_render.hasFocus() && !penguinPTApp.rs.lock_camera) window_options.requestFocus();
             if (!penguinPTApp.rs.is_rendering || penguinPTApp.rs.first_frame_mode) penguinPTApp.rs.frame_index = 0;
-            penguinPTApp.user_interface.oiUpdate(
-                &window_options, 
-                &penguinPTApp.rs, 
-                &displayTex, 
-                &penguinPTApp.scene_ressource_loader.loader_obj,
-                &penguinPTApp.scene_ressource_loader.loader_nvdb,
-                &penguinPTApp.scene_ressource_loader.loader_envmap, 
-                &penguinPTApp.scene_ressource_loader.loader_sdpt,
-                penguinPTApp.m_bvh_ptr);
+            if(window_options.hasFocus()) 
+                penguinPTApp.user_interface.oiUpdate(
+                    &window_options, 
+                    &window_render,
+                    &penguinPTApp.rs, 
+                    &displayTex, 
+                    &penguinPTApp.scene_ressource_loader.loader_obj,
+                    &penguinPTApp.scene_ressource_loader.loader_nvdb,
+                    &penguinPTApp.scene_ressource_loader.loader_envmap, 
+                    &penguinPTApp.scene_ressource_loader.loader_sdpt,
+                    penguinPTApp.m_bvh_ptr,
+                    &penguinPTApp.scene_ressource_loader.manager_textures);
+
+            if (penguinPTApp.rs.is_paused && (!penguinPTApp.rs.is_rendering || penguinPTApp.rs.first_frame_mode)) {
+                penguinPTApp.rs.is_paused = false;
+            }
 
             if(window_render.isOpen()) renderFrame(penguinPTApp.rs, &displayTex);
             
@@ -332,7 +331,7 @@ namespace penguinPT {
             //gotoxy(1, 9);
             float fps = 1.f / penguinPTApp.rs.delta_time;
             //printf("FPS : %f\n", fps);
-            penguinPTApp.rs.frame_index++;
+            if(!penguinPTApp.rs.is_paused) penguinPTApp.rs.frame_index++;
         }
 
         penguinPTApp.clean();

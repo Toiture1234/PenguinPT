@@ -13,6 +13,18 @@
 #define GAMMA_CLAMP 0.0001f
 
 namespace penguinPT {
+	class Medium {
+	public:
+		__hostdev__ Medium() : m_absorption(0.f), m_scattering(0.f), m_scatter_g(0.f), m_can_overlapp(false) {}
+		__hostdev__ ~Medium() {}
+
+		nanovdb::Vec3f m_absorption;
+		nanovdb::Vec3f m_scattering;
+		float m_scatter_g;
+
+		bool m_can_overlapp;
+	private:
+	};
 	// one sample BSDF type, blend between differents models
 	class principled_BSDF {
 	public:
@@ -26,6 +38,8 @@ namespace penguinPT {
 		nanovdb::Vec3f albedo;
 		nanovdb::Vec3f emission;
 		nanovdb::Vec3f absorption;
+
+		//Medium m_medium;
 
 		// WARNING : it is very important to understand the meaning of these parameters :
 		//  - when transparency is used, the surface uses refraction
@@ -173,6 +187,8 @@ namespace penguinPT {
 		util::Onb(N, T, B);
 
 		wo = util::ToLocal(T, B, N, wo), wi = util::ToLocal(T, B, N, wi);
+
+		
 		nanovdb::Vec3f wh;
 		if (wo[2] > 0.f) wh = (wo + wi).normalize();
 		else wh = (wo + wi * eta).normalize();
@@ -180,6 +196,7 @@ namespace penguinPT {
 		if (wh[2] < 0.f) wh *= -1.f;
 
 		Microfacet::Phong_distribution distribution(roughness_);
+		//Microfacet::GTR distribution(roughness_);
 
 		// models weight
 		float f0 = (ior - 1.f) * (ior - 1.f) / ((ior + 1.f) * (ior + 1.f));
@@ -217,6 +234,8 @@ namespace penguinPT {
 			float fresnel = f0 + pow5(1.f - wi.dot(wh)) * (1.f - f0);
 			float cosThetaI = fabsf(util::CosTheta(wi)), cosThetaO = fabsf(util::CosTheta(wo));
 			nanovdb::Vec3f specular = distribution.D(wh) * fresnel / (4.f * fabsf(wi.dot(wh)) * fmaxf(cosThetaI, cosThetaO)) * nanovdb::Vec3f(dielectric_W);
+			//nanovdb::Vec3f specular = distribution.D(wh) * fresnel / (4.f * cosThetaI * cosThetaO) * nanovdb::Vec3f(dielectric_W);
+
 			float H_pdf = distribution.PDF(wh, wo) / (4.f * wo.dot(wh));
 
 			L += specular;
@@ -225,6 +244,8 @@ namespace penguinPT {
 		if (metal_pr > 0.f && reflect) {
 			float cosThetaI = fabsf(util::CosTheta(wi)), cosThetaO = fabsf(util::CosTheta(wo));
 			nanovdb::Vec3f specular = albedo_ * distribution.D(wh) / (4.f * fabsf(wi.dot(wh)) * fmaxf(cosThetaI, cosThetaO));
+			//nanovdb::Vec3f specular = distribution.D(wh) * albedo_ / (4.f * cosThetaI * cosThetaO);
+
 			float H_pdf = distribution.PDF(wh, wo) / (4.f * wo.dot(wh));
 
 			L += specular * metal_W;
@@ -239,6 +260,8 @@ namespace penguinPT {
 			if (reflect) {
 				float cosThetaI = fabsf(util::CosTheta(wi)), cosThetaO = fabsf(util::CosTheta(wo));
 				nanovdb::Vec3f specular = nanovdb::Vec3f(1.f) * distribution.D(wh) / (4.f * fabsf(wi.dot(wh)) * fmaxf(cosThetaI, cosThetaO)) * glass_W;
+				//nanovdb::Vec3f specular = distribution.D(wh) * nanovdb::Vec3f(1.f) / (4.f * cosThetaI * cosThetaO) * glass_W;
+
 				float H_pdf = distribution.PDF(wh, wo) / (4.f * wo.dot(wh));
 
 				L += specular;
@@ -255,7 +278,8 @@ namespace penguinPT {
 		}
 
 		return L * fabsf(wi[2]);
-	}
+
+ 	}
 
 	__device__ nanovdb::Vec3f principled_BSDF::eval_CUDA(
 		nanovdb::Vec3f wo,
@@ -310,9 +334,12 @@ namespace penguinPT {
 		util::Onb(N, T, B);
 
 		wo = util::ToLocal(T, B, N, wo), wi = util::ToLocal(T, B, N, wi);
+
+		
 		nanovdb::Vec3f wh = (wo + wi).normalize();
 
 		Microfacet::Phong_distribution distribution(roughness_);
+		//Microfacet::GTR distribution(roughness_);
 
 		// models weight
 		float f0 = (ior - 1.f) * (ior - 1.f) / ((ior + 1.f) * (ior + 1.f));
@@ -402,7 +429,7 @@ namespace penguinPT {
 		}
 
 		does_scatter = true;
-
+		
 		// convert to local space
 		nanovdb::Vec3f T, B;
 		util::Onb(N, T, B);
@@ -411,6 +438,7 @@ namespace penguinPT {
 		nanovdb::Vec3f wh = (wo + wi).normalize();
 
 		Microfacet::Phong_distribution distribution(roughness_);
+		//Microfacet::GTR distribution(roughness_);
 
 		// models weight
 		float f0 = (ior - 1.f) * (ior - 1.f) / ((ior + 1.f) * (ior + 1.f));

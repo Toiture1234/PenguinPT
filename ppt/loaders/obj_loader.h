@@ -97,6 +97,8 @@ namespace penguinPT::loader {
 						if (apply_definition) {
 							nanovdb::Vec3f& a = bsdf_loader.BSDF_list.back().albedo;
 							sscanf((tokens.at(1) + " " + tokens.at(2) + " " + tokens.at(3)).c_str(), "%f %f %f", &a[0], &a[1], &a[2]);
+
+							bsdf_loader.BSDF_list.back().absorption = nanovdb::Vec3f(1.f) - bsdf_loader.BSDF_list.back().albedo;
 						}
 					}
 					else if (tokens.at(0) == "Ke") {
@@ -184,12 +186,22 @@ namespace penguinPT::loader {
 							if (useGPU) {
 								cudaTextureObject_t& a = bsdf_loader.BSDF_list.back().normal_tex_CUDA;
 
+								if (tokens.at(1) == "-bm") {
 #ifndef WINDOWS_VERSION
-								if(texture_m_ptr->load_texture_GPU_float4("assets/models/" + tokens.at(3), a))
+									if (texture_m_ptr->load_texture_GPU_float4("assets/models/" + tokens.at(3), a))
 #else
-								if (texture_m_ptr->load_texture_GPU_float4(file_util::removeFileName(path) + tokens.at(3), a))
+									if (texture_m_ptr->load_texture_GPU_float4(file_util::removeFileName(path) + tokens.at(3), a))
 #endif
-									bsdf_loader.BSDF_list.back().use_normal_tex = true;
+										bsdf_loader.BSDF_list.back().use_normal_tex = true;
+								}
+								else {
+#ifndef WINDOWS_VERSION
+									if (texture_m_ptr->load_texture_GPU_float4("assets/models/" + tokens.at(1), a))
+#else
+									if (texture_m_ptr->load_texture_GPU_float4(file_util::removeFileName(path) + tokens.at(1), a))
+#endif
+										bsdf_loader.BSDF_list.back().use_normal_tex = true;
+								}
 							}
 							else {
 								CPU_float4_texture& a = bsdf_loader.BSDF_list.back().normal_tex_HOST;
@@ -303,7 +315,9 @@ namespace penguinPT::loader {
 
 							tr.BSDF_index = BSDF_id;
 #endif
+#if BSDF_DATA_HOLDER == 0
 							tr_dat.BSDF_index = BSDF_id;
+#endif
 
 							triangle_list.push_back(tr);
 							tr_data_list.push_back(tr_dat);
@@ -331,7 +345,9 @@ namespace penguinPT::loader {
 
 							tr.BSDF_index = BSDF_id;
 #endif
+#if BSDF_DATA_HOLDER == 0
 							tr_dat.BSDF_index = BSDF_id;
+#endif
 
 							triangle_list.push_back(tr);
 							tr_data_list.push_back(tr_dat);
@@ -353,8 +369,9 @@ namespace penguinPT::loader {
 							tr_dat.uvA = uv_list.at(uvA);
 							tr_dat.uvB = uv_list.at(uvB);
 							tr_dat.uvC = uv_list.at(uvC);
-
+#if BSDF_DATA_HOLDER == 0
 							tr_dat.BSDF_index = BSDF_id;
+#endif
 #if MODE_TRIANGLE == 0
 							tr.BSDF_index = BSDF_id;
 #endif
@@ -371,8 +388,9 @@ namespace penguinPT::loader {
 
 							Triangle tr(vertices_list.at(verticeA), vertices_list.at(verticeB), vertices_list.at(verticeC));
 							Triangle_data tr_dat;
-
+#if BSDF_DATA_HOLDER == 0
 							tr_dat.BSDF_index = BSDF_id;
+#endif
 #if MODE_TRIANGLE == 0
 							tr.BSDF_index = BSDF_id;
 #endif

@@ -18,7 +18,7 @@
 
 #include <ppt/loaders/BVH_loader.h>
 
-#define INTRO_DURATION 5
+#define INTRO_DURATION 0
 
 namespace penguinPT {
 	struct AppOptions {
@@ -32,6 +32,8 @@ namespace penguinPT {
 		} color = AppColor::DARK;
 
 		OptionsInterface::WindowResolution wnd_res = OptionsInterface::WindowResolution::R_1280x720;
+
+		unsigned int intro_duration = 2;
 	};
 	struct LoaderModule {
 		loader::obj_loader loader_obj;
@@ -72,6 +74,7 @@ void penguinPT::Application::initApplication() {
 	this->rs.mainCam.zoom = 1.f;
 	this->rs.mainCam.position = { 0.f, 0.f, 0.f };
 	this->rs.is_rendering = false;
+	this->rs.focus_needed = false;
 	sf::Vector2u wnd_size = getViewportResolution();
 	this->rs.width = wnd_size.x;
 	this->rs.height = wnd_size.y;
@@ -80,7 +83,7 @@ void penguinPT::Application::initApplication() {
 	this->user_interface.setLanguage(options.language);
 	this->user_interface.oiOnInit(&rs);
 
-	OptionsInterface::introWindow(INTRO_DURATION);
+	OptionsInterface::introWindow(options.intro_duration);
 
 	this->user_interface.engineSelectorProcedure(&rs);
 
@@ -131,8 +134,7 @@ void penguinPT::Application::retrieveOptions() {
 		while (std::getline(file, line))
 		{
 			std::vector<std::string> tokens = file_util::get_line_tokens(line, { ' ' });
-			for (std::string& s : tokens) std::cout << s << std::endl;
-
+			
 			if (!tokens.empty()) {
 				if (tokens.at(0) == "LANGUAGE") {
 					std::string s = tokens.at(1);
@@ -145,6 +147,10 @@ void penguinPT::Application::retrieveOptions() {
 					else if (s == "R_1280x720") options.wnd_res = OptionsInterface::WindowResolution::R_1280x720;
 					else if (s == "R_1920x1080") options.wnd_res = OptionsInterface::WindowResolution::R_1920x1080;
 					else if (s == "R_2560x1440") options.wnd_res = OptionsInterface::WindowResolution::R_2560x1440;
+				}
+				if (tokens.at(0) == "INTRO_DURATION") {
+					std::string s = tokens.at(1);
+					options.intro_duration = std::stoi(s);
 				}
 			}
 		}

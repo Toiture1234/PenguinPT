@@ -1,0 +1,5 @@
+TransformOrder translate scale rotate
+
+Solid "models/breakfast_room.obj" 0 0 0 10 10 10 0 0 0
+
+Envmap "qwantani_late_afternoon_2k.hdr"

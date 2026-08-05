@@ -30,6 +30,7 @@ namespace penguinPT {
 		bool lock_camera = false;
 		bool focus_needed = true;
 		bool first_frame_mode = false;
+		bool is_paused = false;
 		Rand_state rng_state = Rand_state();
 
 		camera mainCam;

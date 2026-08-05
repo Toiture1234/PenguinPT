@@ -32,6 +32,7 @@ namespace penguinPT {
 
 		void build();
 		__hostdev__ bool intersectTLAS(nanovdb::math::Ray<float> ray, hit_info& info);
+		__hostdev__ bool intersectTLAS(nanovdb::math::Ray<float> ray, SceneHit& hinfo);
 		__hostdev__ Mesh* getIntersectedMesh(nanovdb::math::Ray<float> ray);
 		
 	public:
@@ -143,12 +144,6 @@ __hostdev__ bool penguinPT::TLAS::intersectTLAS(nanovdb::math::Ray<float> ray, h
 		float dist1 = boxIntersect_float(ray, child1->aabb_min, child1->aabb_max);
 		float dist2 = boxIntersect_float(ray, child2->aabb_min, child2->aabb_max);
 		if (dist1 > dist2) { 
-			/*float temp = dist1;
-			dist1 = dist2;
-			dist2 = temp;
-			TLASNode* temp1 = child1;
-			child1 = child2;
-			child2 = temp1;*/
 			util::swapCUDA(dist1, dist2); 
 			util::swapCUDA(child1, child2); 
 		}
@@ -169,6 +164,40 @@ __hostdev__ bool penguinPT::TLAS::intersectTLAS(nanovdb::math::Ray<float> ray, h
 		hit = hit || blas_list[i].intersectMesh(ray, info);
 	}
 	return hit;*/
+}
+__hostdev__ bool penguinPT::TLAS::intersectTLAS(nanovdb::math::Ray<float> ray, SceneHit& hinfo) {
+	if (blas_count == 0) return false;
+	TLASNode* node = &tlas_node_list[0], * stack[64];
+	unsigned int stackPtr = 0;
+	bool hit = false;
+	while (1)
+	{
+		if (node->isLeaf())
+		{
+			hit = hit || blas_list[node->BLAS].intersectMesh(ray, hinfo);
+
+			if (stackPtr == 0) break; else node = stack[--stackPtr];
+			continue;
+		}
+		TLASNode* child1 = &tlas_node_list[node->left_right & 0xffff];
+		TLASNode* child2 = &tlas_node_list[node->left_right >> 16];
+		float dist1 = boxIntersect_float(ray, child1->aabb_min, child1->aabb_max);
+		float dist2 = boxIntersect_float(ray, child2->aabb_min, child2->aabb_max);
+		if (dist1 > dist2) {
+			util::swapCUDA(dist1, dist2);
+			util::swapCUDA(child1, child2);
+		}
+		if (dist1 >= MAX_DISTANCE)
+		{
+			if (stackPtr == 0) break; else node = stack[--stackPtr];
+		}
+		else
+		{
+			node = child1;
+			if (dist2 <= MAX_DISTANCE) stack[stackPtr++] = child2;
+		}
+	}
+	return hit;
 }
 
 __hostdev__ penguinPT::Mesh* penguinPT::TLAS::getIntersectedMesh(nanovdb::math::Ray<float> ray) {
@@ -197,8 +226,6 @@ __hostdev__ penguinPT::Mesh* penguinPT::TLAS::getIntersectedMesh(nanovdb::math::
 			TLASNode* temp1 = child1;
 			child1 = child2;
 			child2 = temp1;
-			//util::swapCUDA(dist1, dist2); 
-			//util::swapCUDA(child1, child2); 
 		}
 		if (dist1 >= MAX_DISTANCE)
 		{

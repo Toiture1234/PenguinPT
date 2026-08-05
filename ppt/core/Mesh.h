@@ -36,6 +36,7 @@ namespace penguinPT {
 	
 		// intersect the BVH in BVH space
 		__hostdev__ bool intersectBVH(nanovdb::math::Ray<float> ray, hit_info& info);
+		__hostdev__ bool intersectBVH(nanovdb::math::Ray<float> ray, SceneHit& hinfo);
 
 	private:
 		// internal functions
@@ -65,6 +66,7 @@ namespace penguinPT {
 		
 		// Caution : this function may lead to incorrect results due to a scaling concern
 		__hostdev__ bool intersectMesh(nanovdb::math::Ray<float> ray, hit_info& info);
+		__hostdev__ bool intersectMesh(nanovdb::math::Ray<float> ray, SceneHit& hinfo);
 
 		AABB bounding_box;
 		BVH* raw_geometry;
@@ -96,6 +98,13 @@ __hostdev__ bool penguinPT::Mesh::intersectMesh(nanovdb::math::Ray<float> ray, h
 	bool hit = raw_geometry->intersectBVH(ray, info);
 
 	info.normal = transform_matrix.transformVector(info.normal).normalize();
+	return hit;
+}
+__hostdev__ bool penguinPT::Mesh::intersectMesh(nanovdb::math::Ray<float> ray, SceneHit& hinfo) {
+	ray = transform_matrix_inverse.transformRay(ray);
+	bool hit = raw_geometry->intersectBVH(ray, hinfo);
+
+	hinfo.m_normal = transform_matrix.transformVector(hinfo.m_normal).normalize();
 	return hit;
 }
 
@@ -368,6 +377,83 @@ __hostdev__ bool penguinPT::BVH::intersectBVH(nanovdb::math::Ray<float> ray, hit
 		float u_dot = info.normal.dot(ray.dir());
 		float mult = -SIGN(u_dot);
 		info.normal = (intersected_data.nA.dot(intersected_data.nA) > 0.f ? (intersected_data.nA * w + intersected_data.nB * u + intersected_data.nC * v).normalize() : info.normal) * mult;
+#if BSDF_DATA_HOLDER == 0
+		info.BSDF_index = intersected_data.BSDF_index;
+#endif
+
+		// blend info.uv between everything
+		info.uv = make_float2(intersected_data.uvA.x * w + intersected_data.uvB.x * u + intersected_data.uvC.x * v,
+			intersected_data.uvA.y * w + intersected_data.uvB.y * u + intersected_data.uvC.y * v);
+	}
+#endif
+
+	return hit;
+}
+
+__hostdev__ bool penguinPT::BVH::intersectBVH(nanovdb::math::Ray<float> ray, SceneHit& hinfo) {
+	// intersect BVH
+	/*int stack[BVH_INTERSECTOR_STACK_SIZE];
+	int stackIdx = 0;
+	stack[stackIdx++] = 0;
+
+	float t = 1e30f;
+	bool hit = false;
+
+	if (triangle_number == 0) return false;
+
+	float2 uv = make_float2(0.f, 0.f);
+	unsigned int index = 0;
+
+	while (stackIdx > 0)
+	{
+		BVH_node node = node_list[stack[--stackIdx]];
+		if (boxIntersect_float(ray, node.boxMin, node.boxMax) < t) {
+			if (node.triangleCount > 0) { // leaf node
+				for (int i = 0; i < node.triangleCount; i++) { // leaf node
+#if MODE_TRIANGLE == 0
+					return false;
+#else 
+					if (intersect_triangle_uv(ray, triangle_list[triangle_indicies_list[i + node.leftFirst]], uv, info.t)) {
+						info.debug[0]++;
+						hit = true;
+						index = triangle_indicies_list[i + node.leftFirst];
+					}
+#endif
+				}
+			}
+			else {
+				BVH_node childLeft = node_list[node.leftFirst];
+				BVH_node childRight = node_list[node.leftFirst + 1];
+
+				float dstLeft = boxIntersect_float(ray, childLeft.boxMin, childLeft.boxMax);
+				float dstRight = boxIntersect_float(ray, childRight.boxMin, childRight.boxMax);
+				int left = node.leftFirst, right = node.leftFirst + 1;
+
+				if (dstLeft > dstRight) {
+					if (dstLeft < info.t) stack[stackIdx++] = left;
+					if (dstRight < info.t) stack[stackIdx++] = right;
+				}
+				else {
+					if (dstRight < info.t) stack[stackIdx++] = right;
+					if (dstLeft < info.t) stack[stackIdx++] = left;
+				}
+
+			}
+			info.debug[2]++;
+		}
+	}
+#if MODE_TRIANGLE != 0
+	if (hit) {
+		Triangle& intersected = triangle_list[index];
+		Triangle_data& intersected_data = triangle_data_list[index];
+		float u = uv.x;
+		float v = uv.y;
+		float w = 1.f - u - v;
+
+		info.normal = (intersected.B - intersected.A).cross(intersected.C - intersected.A).normalize();
+		float u_dot = info.normal.dot(ray.dir());
+		float mult = -SIGN(u_dot);
+		info.normal = (intersected_data.nA.dot(intersected_data.nA) > 0.f ? (intersected_data.nA * w + intersected_data.nB * u + intersected_data.nC * v).normalize() : info.normal) * mult;
 		info.BSDF_index = intersected_data.BSDF_index;
 
 		// blend info.uv between everything
@@ -377,4 +463,6 @@ __hostdev__ bool penguinPT::BVH::intersectBVH(nanovdb::math::Ray<float> ray, hit
 #endif
 
 	return hit;
+	*/
+	return false;
 }

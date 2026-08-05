@@ -16,15 +16,44 @@ namespace penguinPT {
 	public:
 		nanovdb::Vec3f normal;
 		nanovdb::Vec3f trueNormal;
-		float t = MAX_DISTANCE;
+		float t;
 		float2 uv = make_float2(0.f, 0.f);
 		nanovdb::Vec3u debug;
 		int BSDF_index;
 
 		Volume* all_volumes[VOLUME_STACK_SIZE];
-		int nb_vol;
+		int nb_vol;	
 
-		__hostdev__ hit_info() : normal(0.f), t(0.f), debug(0), BSDF_index(0), trueNormal(0.f), nb_vol(0) {}
+		__hostdev__ hit_info() : normal(0.f), t(MAX_DISTANCE), debug(0), BSDF_index(0), trueNormal(0.f), nb_vol(0) {}
+	};
+	class SceneHit {
+	public:
+		__hostdev__ SceneHit() :
+			m_t(MAX_DISTANCE),
+			m_uv({ 0.f, 0.f }),
+			m_normal(0.f),
+			m_surface_bsdf(nullptr),
+			m_volume_stack_size(0),
+			m_medium_stack_size(0),
+			m_medium_chosen(false)
+		{
+		}
+		__hostdev__ ~SceneHit() {}
+
+		float m_t;
+		float2 m_uv;
+
+		nanovdb::Vec3f m_normal;
+
+		principled_BSDF* m_surface_bsdf;
+
+		Volume* m_volume_stack[VOLUME_STACK_SIZE];
+		unsigned int m_volume_stack_size;
+
+		Medium* m_medium_stack[MEDIUM_STACK_SIZE];
+		unsigned int m_medium_stack_size;
+		bool m_medium_chosen;
+	private:
 	};
 
 	class Sphere {
@@ -39,6 +68,7 @@ namespace penguinPT {
 	class Triangle {
 	public:
 		nanovdb::Vec3f A, B, C, Origin;
+
 #if MODE_TRIANGLE == 0
 		nanovdb::Vec3f nA, nB, nC;
 		unsigned int BSDF_index;
@@ -48,14 +78,20 @@ namespace penguinPT {
 		__hostdev__ Triangle() : A(0.f), B(0.f), C(0.f), Origin(0.f) {}
 		__hostdev__ Triangle(nanovdb::Vec3f a, nanovdb::Vec3f b, nanovdb::Vec3f c) : A(a), B(b), C(c), Origin(0.f) {}
 #endif
+
 		__hostdev__ ~Triangle(){}
 	};
 	class Triangle_data {
 	public:
 		nanovdb::Vec3f nA, nB, nC;
 		float2 uvA, uvB, uvC;
+#if BSDF_DATA_HOLDER == 0
 		unsigned int BSDF_index;
 		__hostdev__ Triangle_data() : nA(0.f), nB(0.f), nC(0.f), BSDF_index(BASE_BSDF), uvA({ 0.f, 0.f }), uvB({ 0.f, 0.f }), uvC({ 0.f, 0.f }) {};
+#else
+		principled_BSDF* bsdf_ptr;
+		__hostdev__ Triangle_data() : nA(0.f), nB(0.f), nC(0.f), bsdf_ptr(nullptr), uvA({ 0.f, 0.f }), uvB({ 0.f, 0.f }), uvC({ 0.f, 0.f }) {};
+#endif
 		__hostdev__ ~Triangle_data() {}
 	};
 	class BVH_node {
@@ -169,6 +205,40 @@ namespace penguinPT {
 		normal = trueNormal;
 #endif
 		return true;
+	}
+	__hostdev__ bool intersectTriangleMethodB(
+		nanovdb::math::Ray<float> ray, 
+		Triangle& tri, 
+		Triangle_data& tri_info,
+		SceneHit& hinfo) 
+	{
+#if BSDF_DATA_HOLDER == 0
+		return false;
+#else
+		nanovdb::Vec3f v1v0 = tri.B - tri.A;
+		nanovdb::Vec3f v2v0 = tri.C - tri.A;
+		nanovdb::Vec3f rov0 = ray.eye() - tri.A;
+		nanovdb::Vec3f  n = v1v0.cross(v2v0);
+		nanovdb::Vec3f  q = rov0.cross(ray.dir());
+		float det = ray.dir().dot(n);
+		float d = 1.0f / det;
+		float u = d * (-q).dot(v2v0);
+		float v = d * q.dot(v1v0);
+		float t = d * (-n).dot(rov0);
+		if (u < 0.0f || v < 0.0f || (u + v) > 1.0f || t < SAFE_OFFSET) return false;
+		if (hinfo.m_t < t) {
+			return false;
+		}
+		float w = 1.0f - u - v;
+
+		hinfo.m_t = t;
+		hinfo.m_normal = n * -det; // no smooth normal rn
+		hinfo.m_surface_bsdf = tri_info.bsdf_ptr;
+		hinfo.m_uv = { tri_info.uvA.x * w + tri_info.uvB.x * u + tri_info.uvC.x * v,
+			tri_info.uvA.y * w + tri_info.uvB.y * u + tri_info.uvC.y * v };
+
+		return true;
+#endif
 	}
 
 	// box intersector, returns the nearest distance to the ray, returns 1e30 if the ray is inside box

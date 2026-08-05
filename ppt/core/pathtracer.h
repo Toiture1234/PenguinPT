@@ -408,4 +408,27 @@ namespace penguinPT {
 		}
 		return L * 3.f;
 	}
+
+	__device__ nanovdb::Vec3f pathtraceRGBDevice(renderer_services& rs, nanovdb::math::Ray<float> ray) 
+	{
+		nanovdb::Vec3f L(0.f);
+		float throughput(1.f);
+
+		int channel = int(randC(&rs.rng_state) * 3.f);
+
+		float scatterPDF = 1.f; // scatter pdf from last bounce, used for MIS
+		bool surface_scatter = false;
+
+		Medium medium_stack[5];
+		unsigned int medium_stack_idx = 0; // would also be used to get stack size
+
+		for (unsigned int i = 0; i < BOUNCES_PT_VOL; i++) {
+			hit_info info;
+
+			info.t = MAX_DISTANCE;
+
+		}
+
+		return L * 3.f;
+	}
 }

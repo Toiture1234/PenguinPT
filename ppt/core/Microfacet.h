@@ -127,7 +127,6 @@ namespace penguinPT::Microfacet {
 		return wh;
 	}
 
-
 	// fresnel 
 	__hostdev__ float fresnel_dielectric(float cosThetaI, float etaI, float etaT) {
 		cosThetaI = CLAMP(cosThetaI, -1.f, 1.f);
@@ -140,7 +139,6 @@ namespace penguinPT::Microfacet {
 		float Rperl = ((etaI * cosThetaI) - (etaT * cosThetaT)) / ((etaI * cosThetaI) + (etaT * cosThetaT));
 		return (Rparl * Rparl + Rperl + Rperl) * 0.5f;
 	}
-
 	class Phong_distribution {
 	public:
 		__hostdev__ Phong_distribution() {}
